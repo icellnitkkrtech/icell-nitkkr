@@ -46,7 +46,7 @@ export default function Navbar() {
           })}
         </div>
 
-        {/* RIGHT SOCIAL ICONS */}
+        {/* RIGHT SOCIAL ICONS AND AUTH */}
         <div className="flex items-center gap-3 pl-2 border-l border-white/10">
           {socials.map((item, index) => {
             const Icon = item.icon;
@@ -60,6 +60,21 @@ export default function Navbar() {
               </a>
             );
           })}
+          
+          <div className="flex items-center gap-2 ml-2">
+            <a 
+              href="/login" 
+              className="px-4 py-1.5 rounded-full text-xs font-semibold text-white/70 hover:text-white transition-colors"
+            >
+              Login
+            </a>
+            <a 
+              href="/register" 
+              className="px-4 py-1.5 rounded-full text-xs font-bold text-black bg-yellow-400 hover:bg-yellow-300 transition-all shadow-lg shadow-yellow-400/10"
+            >
+              Join Us
+            </a>
+          </div>
         </div>
       </div>
     </div>
