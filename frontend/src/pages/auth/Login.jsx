@@ -20,8 +20,7 @@ const Login = () => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        console.log('Login attempt:', { ...formData, role });
-        // Handle API call here
+        console.log('Login attempt (UI only):', { ...formData, role });
     };
 
     return (

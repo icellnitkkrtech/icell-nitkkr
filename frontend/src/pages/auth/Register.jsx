@@ -21,9 +21,9 @@ const Register = () => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        console.log('Registration attempt:', { ...formData, role });
-        // Simulating API call success
-        setSubmitted(true);
+        console.log('Registration attempt (UI only):', { ...formData, role });
+        // Removed mockup success screen to avoid confusing it with a real backend request
+        alert("Registration form data captured locally (UI only). No backend request was sent.");
     };
 
     if (submitted) {
