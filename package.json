@@ -1,9 +1,0 @@
-{
-  "name": "icell-nitkkr-root",
-  "version": "1.0.0",
-  "description": "Root package for icell-nitkkr project",
-  "scripts": {
-    "install:all": "npm install --prefix frontend",
-    "dev": "npm run dev --prefix frontend"
-  }
-}
