@@ -1,18 +1,19 @@
-import { Home, FileText, CalendarDays, Users, PenTool, Twitter, Github, Instagram, Mail } from "lucide-react";
-import { useState } from "react";
+import { Home, FileText, CalendarDays, Users, Github, Instagram, Mail } from "lucide-react";
+import { FaXTwitter } from "react-icons/fa6";
+import { Link, useLocation } from "react-router-dom";
 
 export default function Navbar() {
-  const [active, setActive] = useState("Home");
+  const location = useLocation();
 
   const tabs = [
-  { name: "Home", icon: Home },
-  { name: "Post", icon: FileText },        
-  { name: "Events", icon: CalendarDays },  
-  { name: "Team", icon: Users },           
-];
+    { name: "Home", icon: Home, path: "/" },
+    { name: "Post", icon: FileText, path: "/post" },
+    { name: "Events", icon: CalendarDays, path: "/events" },
+    { name: "Team", icon: Users, path: "/team" },
+  ];
 
   const socials = [
-    { icon: Twitter, link: "#" },
+    { icon: FaXTwitter, link: "#" },
     { icon: Github, link: "#" },
     { icon: Instagram, link: "#" },
     { icon: Mail, link: "#" },
@@ -26,13 +27,13 @@ export default function Navbar() {
         <div className="flex items-center bg-white/5 rounded-full p-1 border border-white/10">
           {tabs.map((tab) => {
             const Icon = tab.icon;
-            const isActive = active === tab.name;
+            const isActive = location.pathname === tab.path;
 
             return (
-              <button
+              <Link
                 key={tab.name}
-                onClick={() => setActive(tab.name)}
-                className={`flex cursor-pointer items-center gap-3 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300
+                to={tab.path}
+                className={`flex items-center gap-3 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300
                   ${
                     isActive
                       ? "bg-white/10 text-white shadow-inner"
@@ -41,7 +42,7 @@ export default function Navbar() {
               >
                 <Icon size={16} />
                 {tab.name}
-              </button>
+              </Link>
             );
           })}
         </div>
@@ -54,6 +55,8 @@ export default function Navbar() {
               <a
                 key={index}
                 href={item.link}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="p-2 rounded-full bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all duration-300"
               >
                 <Icon size={16} />
@@ -61,6 +64,7 @@ export default function Navbar() {
             );
           })}
         </div>
+
       </div>
     </div>
   );

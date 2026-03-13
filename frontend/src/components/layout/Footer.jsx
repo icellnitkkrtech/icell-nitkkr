@@ -1,11 +1,12 @@
 import { Twitter, Github, Instagram, Mail, MapPin } from "lucide-react";
+import { FaXTwitter } from "react-icons/fa6";
 import { motion } from "framer-motion";
 
 export default function Footer() {
   const links = ["Home", "Post", "Events", "Team"];
 
   const socials = [
-    { icon: Twitter, link: "#" },
+    { icon:FaXTwitter, link: "#" },
     { icon: Github, link: "#" },
     { icon: Instagram, link: "#" },
     { icon: Mail, link: "#" },
