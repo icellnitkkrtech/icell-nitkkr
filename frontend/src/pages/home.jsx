@@ -6,17 +6,17 @@ import TeamSection from "../components/layout/TeamSection";
 
 export default function Home() {
   return (
-    <div className="min-h-screen flex flex-col bg-black text-white">
+    <div className="min-h-screen  flex flex-col bg-black text-white">
 
       <div className="fixed top-6 w-full z-50 flex justify-center">
         <Navbar />
       </div>
 
-      <main className="flex-1">
+      <main className="flex-1 ">
         <HeroSection />
 
         {/* Subtle section divider */}
-        <div className="h-px bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent" />
+        <div className="h-px  bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent" />
 
         <EventSection />
 

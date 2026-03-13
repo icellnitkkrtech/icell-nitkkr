@@ -34,7 +34,7 @@ export default function HeroPage() {
   }, []);
 
   return (
-    <section className="relative min-h-screen w-full flex items-center justify-center text-white overflow-hidden">
+    <section className="relative pt-24 min-h-screen w-full flex items-center justify-center text-white overflow-hidden">
       
       {/* Animated Grid Background */}
       <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-black to-gray-900">
