@@ -1,11 +1,19 @@
+import express from "express"
+import { getTeams, addTeamMember, updateTeamMember, deleteTeamMember } from "../controllers/teamController.js"
+import verifyAdmin from "../middleware/adminMiddleware.js"
 
+const router = express.Router()
 
-import { Router } from "express";
-import { getTeams } from "../controllers/teamController.js";
+// get team members
+router.get("/", getTeams)
 
-const router = Router();
+// admin adds team member
+router.post("/", verifyAdmin, addTeamMember)
 
-// ── Public ────────────────────────────────────────────────────────────────────
-router.get("/", getTeams);
+// admin updates team member
+router.put("/:id", verifyAdmin, updateTeamMember)
+
+// admin deletes team member
+router.delete("/:id", verifyAdmin, deleteTeamMember)
 
 export default router;

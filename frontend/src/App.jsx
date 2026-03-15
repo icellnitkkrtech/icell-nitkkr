@@ -5,6 +5,7 @@ import EventsPage from "./pages/EventsPage";
 import NewsletterPage from "./pages/NewsletterPage";
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
+import ProtectedAdminRoute from "./components/admin/ProtectedAdminRoutes";
 import BlogsPage from "./pages/BlogsPage";
 import WriteBlogPage from "./pages/WriteBlogPage";
 import BlogDetailPage from "./pages/BlogDetailPage";
@@ -29,10 +30,6 @@ export default function App() {
             path="/"
             element={
               <div className="min-h-screen flex flex-col bg-[#0d0d0d] text-white">
-                <div className="fixed top-6 w-full z-50 flex justify-center">
-                  <Navbar />
-                </div>
-
                 <Home />
               </div>
             }
@@ -98,12 +95,14 @@ export default function App() {
           <Route path="/register" element={<Register />} />
 
           {/* Admin Routes */}
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/blogs" element={<AdminBlogs />} />
-          <Route path="/admin/newsletters" element={<AdminNewsletters />} />
-          <Route path="/admin/teams" element={<AdminTeams />} />
-          <Route path="/admin/events" element={<AdminEvents />} />
-          <Route path="/admin/gallery" element={<AdminGallery />} />
+          <Route element={<ProtectedAdminRoute />}>
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/blogs" element={<AdminBlogs />} />
+            <Route path="/admin/newsletters" element={<AdminNewsletters />} />
+            <Route path="/admin/teams" element={<AdminTeams />} />
+            <Route path="/admin/events" element={<AdminEvents />} />
+            <Route path="/admin/gallery" element={<AdminGallery />} />
+          </Route>
         </Routes>
       </BrowserRouter>
     </AuthProvider>

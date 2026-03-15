@@ -6,7 +6,7 @@ import { Router } from "express";
 import multer from "multer";
 
 import verifyUser from "../middleware/authMiddleware.js";
-import { isAdmin } from "../middleware/adminMiddleware.js";
+import verifyAdmin from "../middleware/adminMiddleware.js";
 
 import {
   listEvents,
@@ -68,22 +68,22 @@ router.get("/:eventId/my-certificate",       verifyUser, myCertificate);
 router.get("/:eventId/check-my-certificate", verifyUser, checkMyCertificate);
 
 // ── Admin – Events CRUD ───────────────────────────────────────────────────────
-router.post("/",      verifyUser, isAdmin, createEvent);
-router.put("/:id",    verifyUser, isAdmin, updateEvent);
-router.delete("/:id", verifyUser, isAdmin, deleteEvent);
+router.post("/",      verifyUser, verifyAdmin, createEvent);
+router.put("/:id",    verifyUser, verifyAdmin, updateEvent);
+router.delete("/:id", verifyUser, verifyAdmin, deleteEvent);
 
 // ── Admin – Upload event image ────────────────────────────────────────────────
-router.post("/:id/image", verifyUser, isAdmin, uploadImage.single("image"), uploadEventImage);
+router.post("/:id/image", verifyUser, verifyAdmin, uploadImage.single("image"), uploadEventImage);
 
 // ── Admin – Participants ──────────────────────────────────────────────────────
-router.get("/:eventId/participants",                   verifyUser, isAdmin, listParticipants);
-router.post("/:eventId/participants",                  verifyUser, isAdmin, addParticipant);
-router.delete("/:eventId/participants/:participantId", verifyUser, isAdmin, removeParticipant);
+router.get("/:eventId/participants",                   verifyUser, verifyAdmin, listParticipants);
+router.post("/:eventId/participants",                  verifyUser, verifyAdmin, addParticipant);
+router.delete("/:eventId/participants/:participantId", verifyUser, verifyAdmin, removeParticipant);
 
 // ── Admin – Single certificate upload (manual) ────────────────────────────────
 router.post(
   "/:eventId/participants/:participantId/certificate",
-  verifyUser, isAdmin,
+  verifyUser, verifyAdmin,
   uploadPdf.single("certificate"),
   uploadCertificate,
 );
@@ -91,16 +91,16 @@ router.post(
 // ── Admin – CSV import ────────────────────────────────────────────────────────
 router.post(
   "/:eventId/import-participants",
-  verifyUser, isAdmin,
+  verifyUser, verifyAdmin,
   uploadCsv.single("csv"),
   importParticipants,
 );
 
 // ── Admin – Bulk certificate generation ──────────────────────────────────────
-router.post("/:eventId/generate-certificates", verifyUser, isAdmin, generateCertificates);
+router.post("/:eventId/generate-certificates", verifyUser, verifyAdmin, generateCertificates);
 
 // ── Admin – Send (publish) / Revoke (unpublish) certificates ─────────────────
-router.post("/:eventId/send-certificates",   verifyUser, isAdmin, sendCertificates);
-router.post("/:eventId/revoke-certificates", verifyUser, isAdmin, revokeCertificates);
+router.post("/:eventId/send-certificates",   verifyUser, verifyAdmin, sendCertificates);
+router.post("/:eventId/revoke-certificates", verifyUser, verifyAdmin, revokeCertificates);
 
 export default router;

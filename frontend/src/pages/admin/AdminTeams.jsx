@@ -1,247 +1,357 @@
-import { useState } from "react";
+import addTeamMember from "../../services/addTeamMember";
+import deleteTeamMember from "../../services/deleteTeamMember";
+import updateTeamMember from "../../services/updateTeamMember";
+import { useState, useEffect } from "react";
+import { Edit2, Trash2, Plus, Loader } from "lucide-react";
 
-const initialTeams = [
-  {
-    id: 1,
-    name: "Technical Team",
-    color: "#6366f1",
-    members: [
-      { id: 1, name: "Rahul Sharma", position: "Lead", email: "rahul@college.edu" },
-      { id: 2, name: "Aman Verma", position: "Developer", email: "aman@college.edu" },
-      { id: 3, name: "Priya Mehta", position: "Designer", email: "priya@college.edu" },
-    ],
-  },
-  {
-    id: 2,
-    name: "Marketing Team",
-    color: "#a855f7",
-    members: [
-      { id: 4, name: "Sneha Roy", position: "Lead", email: "sneha@college.edu" },
-      { id: 5, name: "Karan Gupta", position: "Content Writer", email: "karan@college.edu" },
-    ],
-  },
-  {
-    id: 3,
-    name: "Events Team",
-    color: "#0ea5e9",
-    members: [
-      { id: 6, name: "Ananya Singh", position: "Coordinator", email: "ananya@college.edu" },
-      { id: 7, name: "Rohit Patel", position: "Logistics", email: "rohit@college.edu" },
-      { id: 8, name: "Maya Iyer", position: "Volunteer Head", email: "maya@college.edu" },
-    ],
-  },
-];
-
-const positions = ["Lead", "Co-Lead", "Developer", "Designer", "Content Writer", "Coordinator", "Logistics", "Volunteer Head", "Member"];
 
 export default function AdminTeams() {
-  const [teams, setTeams] = useState(initialTeams);
-  const [selectedTeam, setSelectedTeam] = useState(initialTeams[0]);
+  const [team, setTeam] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [editingMember, setEditingMember] = useState(null);
+  const [editForm, setEditForm] = useState({ name: "", position: "", image: "", linkedin: "", insta: "" });
   const [showAddMember, setShowAddMember] = useState(false);
-  const [showAddTeam, setShowAddTeam] = useState(false);
-  const [memberForm, setMemberForm] = useState({ name: "", email: "", position: "Member" });
-  const [teamForm, setTeamForm] = useState({ name: "", color: "#a855f7" });
-  const [editMember, setEditMember] = useState(null);
+  const [memberForm, setMemberForm] = useState({ name: "", position: "", image: "", linkedin: "", insta: "" });
 
-  const getTeam = (id) => teams.find(t => t.id === id);
+  useEffect(() => {
+    const fetchTeam = async () => {
+      try {
+        const res = await fetch("http://localhost:5000/api/teams");
+        const data = await res.json();
+        // Handle both array of members and object with members property
+        const teamData = Array.isArray(data) 
+          ? { members: data }
+          : data;
+        setTeam(teamData);
+      } catch (error) {
+        console.error("Error fetching team:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const addMember = () => {
-    if (!memberForm.name) return;
-    const updated = teams.map(t =>
-      t.id === selectedTeam.id
-        ? { ...t, members: [...t.members, { id: Date.now(), ...memberForm }] }
-        : t
-    );
-    setTeams(updated);
-    setSelectedTeam(updated.find(t => t.id === selectedTeam.id));
-    setMemberForm({ name: "", email: "", position: "Member" });
+    fetchTeam();
+  }, []);
+
+
+const addMember = async () => {
+  if (!memberForm.name) return;
+
+  try {
+    console.log("Adding member with data:", memberForm);
+    const newMember = await addTeamMember(memberForm);
+
+    setTeam({
+      ...team,
+      members: [...(team.members || []), newMember]
+    });
+
+    setMemberForm({
+      name: "",
+      position: "",
+      image: "",
+      linkedin: "",
+      instagram: ""
+    });
+
     setShowAddMember(false);
+
+  } catch (err) {
+    console.error(err);
+    alert("Failed to add member");
+  }
+};
+
+  const removeMember = async (memberId) => {
+    try {
+      await deleteTeamMember(memberId);
+      const updatedTeam = {
+        ...team,
+        members: team.members.filter(m => m.id !== memberId)
+      };
+      setTeam(updatedTeam);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete member");
+    }
   };
 
-  const removeMember = (memberId) => {
-    const updated = teams.map(t =>
-      t.id === selectedTeam.id
-        ? { ...t, members: t.members.filter(m => m.id !== memberId) }
-        : t
+  const startEditingMember = (member) => {
+    setEditingMember(member.id);
+    setEditForm({
+      name: member.name || "",
+      position: member.position || "",
+      image: member.image || "",
+      linkedin: member.linkedin || "",
+      insta: member.insta || ""
+    });
+  };
+
+  const updateMember = async (memberId) => {
+    try {
+      await updateTeamMember(memberId, editForm);
+      const updatedTeam = {
+        ...team,
+        members: team.members.map(m => m.id === memberId ? { ...m, ...editForm } : m)
+      };
+      setTeam(updatedTeam);
+      setEditingMember(null);
+      setEditForm({ name: "", position: "", image: "", linkedin: "", insta: "" });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update member");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0d0d0d" }}>
+        <div className="text-center">
+          <Loader className="w-8 h-8 text-yellow-400 animate-spin mx-auto mb-3" />
+          <p className="text-white">Loading team...</p>
+        </div>
+      </div>
     );
-    setTeams(updated);
-    setSelectedTeam(updated.find(t => t.id === selectedTeam.id));
-  };
+  }
 
-  const updateMemberPosition = (memberId, position) => {
-    const updated = teams.map(t =>
-      t.id === selectedTeam.id
-        ? { ...t, members: t.members.map(m => m.id === memberId ? { ...m, position } : m) }
-        : t
+  if (!team) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#0d0d0d" }}>
+        <div className="text-center">
+          <p className="text-white text-lg mb-4">No team data found</p>
+          <p className="text-[#555] text-sm">Please contact an administrator</p>
+        </div>
+      </div>
     );
-    setTeams(updated);
-    setSelectedTeam(updated.find(t => t.id === selectedTeam.id));
-    setEditMember(null);
-  };
+  }
 
-  const addTeam = () => {
-    if (!teamForm.name) return;
-    const newTeam = { id: Date.now(), name: teamForm.name, color: teamForm.color, members: [] };
-    setTeams(prev => [...prev, newTeam]);
-    setTeamForm({ name: "", color: "#a855f7" });
-    setShowAddTeam(false);
-  };
-
-  const deleteTeam = (id) => {
-    setTeams(prev => prev.filter(t => t.id !== id));
-    if (selectedTeam.id === id) setSelectedTeam(teams.find(t => t.id !== id));
-  };
-
-  const currentTeam = getTeam(selectedTeam?.id) || teams[0];
+  const members = team.members || [];
 
   return (
     <div className="p-8 min-h-screen" style={{ background: "#0d0d0d" }}>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Team Management</h1>
-          <p className="text-[#555] text-sm mt-1">Create teams and assign member positions</p>
+      {/* Header */}
+      <div className="mb-10">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-4xl font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              Team Management
+            </h1>
+            <p className="text-[#555] text-sm mt-2">Edit team members and manage positions</p>
+          </div>
+          <button
+            onClick={() => setShowAddMember(true)}
+            className="px-4 py-2 cursor-pointer rounded-lg text-sm font-semibold transition-all flex items-center gap-2"
+            style={{ background: "", color: "white" }}
+          >
+            <Plus size={18} /> Add Member
+          </button>
         </div>
-        <button
-          onClick={() => setShowAddTeam(true)}
-          className="px-4 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2"
-          style={{ background: "linear-gradient(135deg, #a855f7, #6366f1)", color: "white" }}
-        >
-          <span className="text-lg">+</span> New Team
-        </button>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Teams List */}
-        <div>
-          <div className="rounded-xl border overflow-hidden" style={{ background: "#111", borderColor: "#1f1f1f" }}>
-            <div className="px-4 py-3 border-b" style={{ borderColor: "#1f1f1f" }}>
-              <p className="text-[#666] text-xs font-medium uppercase tracking-wider">All Teams ({teams.length})</p>
+        {/* Team Info Card */}
+        <div className="rounded-xl border p-6" style={{ background: "#111", borderColor: "#1f1f1f" }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-white">{team.name || "Leadership Team"}</h2>
+              <p className="text-[#555] text-sm mt-1">{members.length} team members</p>
             </div>
-            <div className="divide-y" style={{ borderColor: "#1f1f1f" }}>
-              {teams.map(team => (
-                <div
-                  key={team.id}
-                  onClick={() => setSelectedTeam(team)}
-                  className="px-4 py-4 cursor-pointer hover:bg-[#161616] transition-colors flex items-center gap-3"
-                  style={{ background: currentTeam?.id === team.id ? "#161616" : "transparent" }}
-                >
-                  <div
-                    className="w-2.5 h-8 rounded-full flex-shrink-0"
-                    style={{ background: team.color }}
-                  />
-                  <div className="flex-1">
-                    <p className="text-white text-sm font-medium">{team.name}</p>
-                    <p className="text-[#555] text-xs">{team.members.length} members</p>
-                  </div>
-                  {currentTeam?.id === team.id && (
-                    <span className="text-[#555]">›</span>
-                  )}
-                </div>
-              ))}
+            <div className="px-4 py-2 rounded-lg" style={{ background: "rgba(168,85,247,0.1)" }}>
+              <p className="text-yellow-400 text-sm font-medium">Team</p>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Team Details */}
-        <div className="lg:col-span-2">
-          {currentTeam && (
-            <div className="rounded-xl border" style={{ background: "#111", borderColor: "#1f1f1f" }}>
-              {/* Team Header */}
-              <div className="px-6 py-5 border-b flex items-center justify-between" style={{ borderColor: "#1f1f1f" }}>
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full" style={{ background: currentTeam.color }} />
-                  <h2 className="text-white font-semibold text-lg" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-                    {currentTeam.name}
-                  </h2>
-                  <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${currentTeam.color}18`, color: currentTeam.color }}>
-                    {currentTeam.members.length} members
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowAddMember(true)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium"
-                    style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7" }}
-                  >
-                    + Add Member
-                  </button>
-                  <button
-                    onClick={() => deleteTeam(currentTeam.id)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium"
-                    style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}
-                  >
-                    Delete Team
-                  </button>
-                </div>
-              </div>
-
-              {/* Members */}
-              <div className="divide-y" style={{ borderColor: "#1f1f1f" }}>
-                {currentTeam.members.map(member => (
-                  <div key={member.id} className="px-6 py-4 flex items-center gap-4 hover:bg-[#161616] transition-colors">
+      {/* Team Members Grid */}
+      {members.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {members.map(member => (
+            <div
+              key={member.id}
+              className="rounded-xl border overflow-hidden transition-all hover:border-yellow-400/30"
+              style={{ background: "#111", borderColor: "#1f1f1f" }}
+            >
+              {/* Member Card */}
+              <div className="p-6">
+                {/* Avatar */}
+                <div className="mb-4 flex justify-center">
+                  {member.image ? (
+                    <img
+                      src={member.image}
+                      alt={member.name}
+                      className="w-16 h-16 rounded-full object-cover border-2"
+                      style={{ borderColor: "#a855f7" }}
+                    />
+                  ) : (
                     <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
-                      style={{ background: `${currentTeam.color}20`, color: currentTeam.color }}
+                      className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold"
+                      style={{ background: "linear-gradient(135deg, #a855f7, #6366f1)" }}
                     >
-                      {member.name.charAt(0)}
+                      {member.name?.charAt(0)?.toUpperCase()}
                     </div>
-                    <div className="flex-1">
-                      <p className="text-white text-sm font-medium">{member.name}</p>
-                      <p className="text-[#555] text-xs">{member.email}</p>
+                  )}
+                </div>
+
+                {/* Member Info */}
+                <div className="text-center mb-4">
+                  <h3 className="text-white font-semibold text-lg mb-1">{member.name || "Unknown"}</h3>
+                  <p className="text-yellow-400 text-sm font-medium mb-2">{member.position || "Team Member"}</p>
+                  {member.email && <p className="text-[#555] text-xs">{member.email}</p>}
+                </div>
+
+                {editingMember === member.id ? (
+                  <div className="mb-4 space-y-3">
+                    <div>
+                      <label className="text-[#666] text-xs mb-1.5 block">Name</label>
+                      <input
+                        type="text"
+                        value={editForm.name}
+                        onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                        placeholder="e.g. Rahul Sharma"
+                        className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none border"
+                        style={{ background: "#0d0d0d", borderColor: "#2a2a2a" }}
+                      />
                     </div>
-                    {editMember === member.id ? (
-                      <select
-                        defaultValue={member.position}
-                        onChange={e => updateMemberPosition(member.id, e.target.value)}
-                        className="text-xs rounded-lg px-2 py-1.5 outline-none"
-                        style={{ background: "#1a1a1a", color: "#fff", border: "1px solid #2a2a2a" }}
-                        autoFocus
-                        onBlur={() => setEditMember(null)}
-                      >
-                        {positions.map(p => <option key={p} value={p}>{p}</option>)}
-                      </select>
-                    ) : (
+                    <div>
+                      <label className="text-[#666] text-xs mb-1.5 block">Position</label>
+                      <input
+                        type="text"
+                        value={editForm.position}
+                        onChange={e => setEditForm({ ...editForm, position: e.target.value })}
+                        placeholder="e.g. Lead Developer"
+                        className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none border"
+                        style={{ background: "#0d0d0d", borderColor: "#2a2a2a" }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[#666] text-xs mb-1.5 block">Image URL</label>
+                      <input
+                        type="text"
+                        value={editForm.image}
+                        onChange={e => setEditForm({ ...editForm, image: e.target.value })}
+                        placeholder="e.g. https://example.com/image.jpg"
+                        className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none border"
+                        style={{ background: "#0d0d0d", borderColor: "#2a2a2a" }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[#666] text-xs mb-1.5 block">LinkedIn URL</label>
+                      <input
+                        type="text"
+                        value={editForm.linkedin}
+                        onChange={e => setEditForm({ ...editForm, linkedin: e.target.value })}
+                        placeholder="e.g. https://linkedin.com/in/username"
+                        className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none border"
+                        style={{ background: "#0d0d0d", borderColor: "#2a2a2a" }}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[#666] text-xs mb-1.5 block">Instagram URL</label>
+                      <input
+                        type="text"
+                        value={editForm.insta} 
+                        onChange={e => setEditForm({ ...editForm, insta: e.target.value })}
+                        placeholder="e.g. https://instagram.com/username"
+                        className="w-full px-3 py-2 rounded-lg text-sm text-white outline-none border"
+                        style={{ background: "#0d0d0d", borderColor: "#2a2a2a" }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Action Buttons */}
+                <div className="flex gap-2">
+                  {editingMember === member.id ? (
+                    <>
                       <button
-                        onClick={() => setEditMember(member.id)}
-                        className="text-xs px-2.5 py-1 rounded-full transition-colors hover:opacity-80"
-                        style={{ background: `${currentTeam.color}15`, color: currentTeam.color }}
+                        onClick={() => updateMember(member.id)}
+                        className="flex-1 cursor-pointer px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
+                        style={{
+                          background: "rgba(34,197,94,0.1)",
+                          color: "#22c55e"
+                        }}
                       >
-                        {member.position} ✎
+                        <Edit2 size={14} />
+                        Done
                       </button>
-                    )}
-                    <button
-                      onClick={() => removeMember(member.id)}
-                      className="text-[#444] hover:text-red-500 transition-colors text-sm"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-                {currentTeam.members.length === 0 && (
-                  <div className="text-center py-12">
-                    <p className="text-3xl mb-2">👥</p>
-                    <p className="text-[#444] text-sm">No members yet. Add your first member!</p>
-                  </div>
-                )}
+                      <button
+                        onClick={() => {
+                          setEditingMember(null);
+                          setEditForm({ name: "", position: "", image: "", linkedin: "", insta: "" });
+                        }}
+                        className="flex-1 cursor-pointer px-3 py-2 rounded-lg text-sm font-medium transition-all"
+                        style={{
+                          background: "rgba(107,114,128,0.1)",
+                          color: "#9ca3af"
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => startEditingMember(member)}
+                        className="flex-1 cursor-pointer px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
+                        style={{
+                          background: "rgba(168,85,247,0.1)",
+                          color: "#a855f7"
+                        }}
+                      >
+                        <Edit2 size={14} />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => removeMember(member.id)}
+                        className="px-3 cursor-pointer py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
+                        style={{
+                          background: "rgba(239,68,68,0.1)",
+                          color: "#ef4444"
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          )}
+          ))}
         </div>
-      </div>
+      ) : (
+        <div className="text-center py-16">
+          <p className="text-4xl mb-4">👥</p>
+          <p className="text-white text-lg mb-2">No team members yet</p>
+          <p className="text-[#555] text-sm">Add your first team member to get started</p>
+        </div>
+      )}
 
       {/* Add Member Modal */}
       {showAddMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.8)" }} onClick={() => setShowAddMember(false)}>
-          <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "#111", border: "1px solid #2a2a2a" }} onClick={e => e.stopPropagation()}>
-            <h3 className="text-white font-semibold text-lg mb-5" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Add Member to {currentTeam?.name}</h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.8)" }}
+          onClick={() => setShowAddMember(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl p-6"
+            style={{ background: "#111", border: "1px solid #2a2a2a" }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-white font-semibold text-lg mb-5" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              Add Team Member
+            </h3>
             <div className="space-y-4">
               {[
                 { label: "Full Name *", field: "name", placeholder: "e.g. Rahul Sharma" },
-                { label: "Email", field: "email", placeholder: "e.g. rahul@college.edu" },
+                { label: "Position", field: "position", placeholder: "e.g. Lead Developer" },
+                { label: "Image URL", field: "image", placeholder: "e.g. https://example.com/image.jpg" },
+                { label: "LinkedIn URL", field: "linkedin", placeholder: "e.g. https://linkedin.com/in/rahulsharma" },
+                { label: "Instagram URL", field: "insta", placeholder: "e.g. https://instagram.com/rahulsharma" },
               ].map(({ label, field, placeholder }) => (
                 <div key={field}>
                   <label className="text-[#666] text-xs mb-1.5 block">{label}</label>
                   <input
+                    type="text"
                     value={memberForm[field]}
                     onChange={e => setMemberForm(f => ({ ...f, [field]: e.target.value }))}
                     placeholder={placeholder}
@@ -251,64 +361,14 @@ export default function AdminTeams() {
                 </div>
               ))}
               <div>
-                <label className="text-[#666] text-xs mb-1.5 block">Position</label>
-                <select
-                  value={memberForm.position}
-                  onChange={e => setMemberForm(f => ({ ...f, position: e.target.value }))}
-                  className="w-full px-3 py-2.5 rounded-lg text-sm text-white outline-none border"
-                  style={{ background: "#0d0d0d", borderColor: "#2a2a2a" }}
-                >
-                  {positions.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
+
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={addMember} className="flex-1 py-2.5 rounded-lg text-sm font-semibold" style={{ background: "linear-gradient(135deg, #a855f7, #6366f1)", color: "white" }}>
+              <button onClick={addMember} className="flex-1 cursor-pointer py-2.5 rounded-lg text-sm font-semibold" style={{ background: "linear-gradient(135deg, #a855f7, #6366f1)", color: "white" }}>
                 Add Member
               </button>
               <button onClick={() => setShowAddMember(false)} className="px-4 py-2.5 rounded-lg text-sm" style={{ background: "#1a1a1a", color: "#666" }}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Team Modal */}
-      {showAddTeam && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.8)" }} onClick={() => setShowAddTeam(false)}>
-          <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: "#111", border: "1px solid #2a2a2a" }} onClick={e => e.stopPropagation()}>
-            <h3 className="text-white font-semibold text-lg mb-5" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Create New Team</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="text-[#666] text-xs mb-1.5 block">Team Name *</label>
-                <input
-                  value={teamForm.name}
-                  onChange={e => setTeamForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Design Team"
-                  className="w-full px-3 py-2.5 rounded-lg text-sm text-white outline-none border"
-                  style={{ background: "#0d0d0d", borderColor: "#2a2a2a" }}
-                />
-              </div>
-              <div>
-                <label className="text-[#666] text-xs mb-1.5 block">Team Color</label>
-                <div className="flex gap-2">
-                  {["#a855f7", "#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444"].map(c => (
-                    <button
-                      key={c}
-                      onClick={() => setTeamForm(f => ({ ...f, color: c }))}
-                      className="w-8 h-8 rounded-full transition-transform hover:scale-110"
-                      style={{ background: c, outline: teamForm.color === c ? `2px solid ${c}` : "none", outlineOffset: "2px" }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={addTeam} className="flex-1 py-2.5 rounded-lg text-sm font-semibold" style={{ background: "linear-gradient(135deg, #a855f7, #6366f1)", color: "white" }}>
-                Create Team
-              </button>
-              <button onClick={() => setShowAddTeam(false)} className="px-4 py-2.5 rounded-lg text-sm" style={{ background: "#1a1a1a", color: "#666" }}>
                 Cancel
               </button>
             </div>

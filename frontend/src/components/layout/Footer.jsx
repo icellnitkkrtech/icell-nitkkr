@@ -7,7 +7,10 @@ export default function Footer() {
   const socials = [
     { icon: Twitter, link: "#" },
     { icon: Github, link: "#" },
-    { icon: Instagram, link: "#" },
+    {
+      icon: Instagram,
+      link: "https://www.instagram.com/innovationcell_nitkkr?igsh=bTB4ZWRveG9tNjV5",
+    },
     { icon: Mail, link: "#" },
   ];
 
@@ -32,34 +35,31 @@ export default function Footer() {
   };
 
   return (
-    <footer className="relative mt-12 w-full flex justify-center px-6 pb-10">
-
+    <footer className="relative mt-10 sm:mt-12 w-full flex justify-center px-4 sm:px-6 pb-8 sm:pb-10">
       {/* Outer Glass Container */}
       <motion.div
         initial="hidden"
         whileInView="visible"
         variants={containerVariants}
         viewport={{ once: true, margin: "-100px" }}
-        className="w-full max-w-8xl bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl shadow-xl p-12"
+        className="w-full max-w-8xl bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl sm:rounded-3xl shadow-xl p-6 sm:p-8 md:p-12"
       >
-
-        <div className="grid md:grid-cols-4 gap-12">
-
+        <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-10 md:gap-12">
           {/* About */}
           <motion.div variants={itemVariants}>
-            <h2 className="text-white text-lg font-semibold mb-4">
+            <h2 className="text-white text-base sm:text-lg font-semibold mb-3 sm:mb-4">
               Innovation Cell
             </h2>
-            <p className="text-white/60 text-sm leading-relaxed">
+            <p className="text-white/60 text-xs sm:text-sm leading-relaxed">
               Official technical society of NIT Kurukshetra fostering
-              creativity, innovation and entrepreneurship through
-              student-driven initiatives.
+              creativity, innovation and entrepreneurship through student-driven
+              initiatives.
             </p>
           </motion.div>
 
           {/* Quick Links */}
           <motion.div variants={itemVariants}>
-            <h3 className="text-white font-medium mb-4">Quick Links</h3>
+            <h3 className="text-white font-medium mb-3 sm:mb-4">Quick Links</h3>
             <ul className="space-y-3">
               {links.map((item) => (
                 <li key={item}>
@@ -76,7 +76,7 @@ export default function Footer() {
 
           {/* Social */}
           <motion.div variants={itemVariants}>
-            <h3 className="text-white font-medium mb-4">Connect</h3>
+            <h3 className="text-white font-medium mb-3 sm:mb-4">Connect</h3>
             <div className="flex gap-3">
               {socials.map((item, index) => {
                 const Icon = item.icon;
@@ -84,11 +84,13 @@ export default function Footer() {
                   <motion.a
                     key={index}
                     href={item.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     whileHover={{ scale: 1.1, y: -2 }}
                     whileTap={{ scale: 0.95 }}
-                    className="p-3 rounded-full bg-white/5 border border-white/10
-                               text-white/60 hover:text-white hover:bg-white/10
-                               transition-all duration-300"
+                      className="p-2.5 sm:p-3 rounded-full bg-white/5 border border-white/10
+                     text-white/60 hover:text-white hover:bg-white/10
+                     transition-all duration-300"
                   >
                     <Icon size={18} />
                   </motion.a>
@@ -99,12 +101,10 @@ export default function Footer() {
 
           {/* Contact */}
           <motion.div variants={itemVariants}>
-            <h3 className="text-white font-medium mb-4">Contact</h3>
-            <div className="flex items-start gap-3 text-white/60 text-sm">
-              <MapPin size={18} className="mt-1" />
-              <span>
-                NIT Kurukshetra, Haryana, India - 136119
-              </span>
+            <h3 className="text-white font-medium mb-3 sm:mb-4">Contact</h3>
+            <div className="flex items-start gap-3 text-white/60 text-xs sm:text-sm">
+              <MapPin size={18} className="mt-0.5 sm:mt-1" />
+              <span>NIT Kurukshetra, Haryana, India - 136119</span>
             </div>
           </motion.div>
         </div>
@@ -112,11 +112,11 @@ export default function Footer() {
         {/* Divider */}
         <motion.div
           variants={itemVariants}
-          className="mt-12 pt-6 border-t border-white/10 flex flex-col md:flex-row justify-between items-center text-sm text-white/40"
+          className="mt-8 sm:mt-10 md:mt-12 pt-5 sm:pt-6 border-t border-white/10 flex flex-col md:flex-row justify-between items-center text-xs sm:text-sm text-white/40"
         >
           <p>© 2026 Innovation Cell, NIT Kurukshetra.</p>
 
-          <div className="flex gap-6 mt-4 md:mt-0">
+          <div className="flex gap-4 sm:gap-6 mt-3 sm:mt-4 md:mt-0">
             <a href="#" className="hover:text-white transition">
               Privacy Policy
             </a>
