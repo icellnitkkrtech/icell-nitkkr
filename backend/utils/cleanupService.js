@@ -48,13 +48,14 @@ export async function performCleanup() {
       `[Cleanup Service] Running cleanup job at ${new Date().toISOString()}`
     );
 
-    const deletedCount = await authModel.deleteUnverifiedOlderThan(
+    // Delete unverified accounts
+    const deletedUnverifiedCount = await authModel.deleteUnverifiedOlderThan(
       UNVERIFIED_EXPIRY_HOURS
     );
 
-    if (deletedCount > 0) {
+    if (deletedUnverifiedCount > 0) {
       console.log(
-        `[Cleanup Service] Deleted ${deletedCount} unverified student account(s) older than ${UNVERIFIED_EXPIRY_HOURS} hours`
+        `[Cleanup Service] Deleted ${deletedUnverifiedCount} unverified student account(s) older than ${UNVERIFIED_EXPIRY_HOURS} hours (2 days)`
       );
     } else {
       console.log(
@@ -62,7 +63,17 @@ export async function performCleanup() {
       );
     }
 
-    return deletedCount;
+    // Delete expired password reset tokens
+    const deletedResetTokenCount =
+      await authModel.deleteExpiredPasswordResetTokens();
+
+    if (deletedResetTokenCount > 0) {
+      console.log(
+        `[Cleanup Service] Cleared ${deletedResetTokenCount} expired password reset token(s)`
+      );
+    }
+
+    return deletedUnverifiedCount;
   } catch (error) {
     console.error("[Cleanup Service] Error during cleanup:", error);
     return 0;

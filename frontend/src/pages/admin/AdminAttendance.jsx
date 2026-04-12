@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import AdminSidebar from "../../components/admin/AdminSidebar";
 import {
@@ -210,7 +210,14 @@ export default function AdminAttendance() {
 
   const handleCreateNew = () => {
     // Go to selection view where user can choose between main or attendance-only
+    // Clear ALL fields for fresh start
+    setEventName("");
+    setEventType("meet");
+    setEventDate(new Date().toISOString().split("T")[0]);
+    setEventSource("attendance_only");
     setEventYears([]);
+    setAttendance({});
+    setSearchTerm("");
     setViewState("select");
   };
 
@@ -232,6 +239,7 @@ export default function AdminAttendance() {
 
   const handleCreateAttendanceOnly = () => {
     // User chose to create a new attendance-only event
+    // Initialize empty fields for new event creation (called from "list" view)
     setEventName("");
     setEventType("meet");
     setEventDate(new Date().toISOString().split("T")[0]);
@@ -239,6 +247,17 @@ export default function AdminAttendance() {
     setEventYears([]);
     setAttendance({});
     setSearchTerm("");
+    setViewState("create");
+  };
+
+  const handleProceedToMarkAttendance = () => {
+    // User filled form in "select" view and clicked "Create & Mark Attendance"
+    // Preserve the filled values and transition to attendance marking view
+    if (!eventName.trim()) {
+      alert("Please provide an Event Name");
+      return;
+    }
+    setAttendance({}); // Clear attendance data for the new event
     setViewState("create");
   };
 
@@ -514,12 +533,8 @@ export default function AdminAttendance() {
               {/* Option 2: Create Attendance-Only Event */}
               <div className="rounded-2xl border-2 border-[#1f1f1f] bg-[#111111] p-8 hover:border-blue-500 transition">
                 <h3 className="text-xl font-bold text-white mb-4">
-                  📝 Attendance-Only Event
+                  📝 New Attendance-Only Event
                 </h3>
-                <p className="text-[#888] text-sm mb-6">
-                  Create a new event just for attendance tracking. This won't
-                  appear in the Events section.
-                </p>
 
                 <div className="space-y-4 mb-6">
                   <div>
@@ -572,7 +587,7 @@ export default function AdminAttendance() {
                 </div>
 
                 <button
-                  onClick={handleCreateAttendanceOnly}
+                  onClick={handleProceedToMarkAttendance}
                   disabled={!eventName.trim()}
                   className="w-full px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition"
                 >

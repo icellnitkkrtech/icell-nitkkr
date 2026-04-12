@@ -7,6 +7,7 @@ import {
   fetchUniqueEvents, // Added to get a list of past dynamic events
   fetchMainEvents, // Get main events from events collection
   fetchAttendanceOnlyEvents, // Get attendance-only events
+  deleteEvent, // Delete event and all its attendance records
 } from "../models/eventAttendanceModel.js";
 
 // POST /api/event-attendance/mark - Mark attendance (using body)
@@ -156,6 +157,26 @@ export const getAttendanceOnlyEvents = async (req, res) => {
     const { data, error } = await fetchAttendanceOnlyEvents();
     if (error) return res.status(400).json({ error: error.message });
     res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// DELETE /api/event-attendance/event - Delete event and all its attendance records via query params
+export const deleteEventAttendance = async (req, res) => {
+  try {
+    const { name, date } = req.query;
+
+    if (!name || !date) {
+      return res.status(400).json({
+        error: "Event name and date are required",
+      });
+    }
+
+    const { data, error } = await deleteEvent(name, date);
+    if (error) return res.status(400).json({ error: error.message });
+
+    res.json({ message: "Event deleted successfully", data });
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }

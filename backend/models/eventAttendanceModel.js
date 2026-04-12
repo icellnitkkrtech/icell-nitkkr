@@ -294,3 +294,30 @@ export async function fetchAttendanceOnlyEvents() {
     return { data: null, error };
   }
 }
+
+// Delete event - removes all attendance records for a specific event
+export async function deleteEvent(eventName, eventDate) {
+  try {
+    const db = getDB();
+    const attendance = db.collection("event_attendance");
+
+    const result = await attendance.deleteMany({
+      event_name: eventName,
+      event_date: eventDate,
+    });
+
+    if (result.deletedCount === 0) {
+      return {
+        data: null,
+        error: new Error("Event not found. No records deleted."),
+      };
+    }
+
+    return {
+      data: { deletedCount: result.deletedCount },
+      error: null,
+    };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
