@@ -1,16 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { Mail, Lock } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
 
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login } = useAuth();
+  const { login, resendVerificationEmail } = useAuth();
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0); // Cooldown countdown in seconds
 
   useEffect(() => {
     const verified = searchParams.get("verified");
@@ -22,6 +25,17 @@ export default function Login() {
       );
     }
   }, [searchParams]);
+
+  // Cooldown timer effect
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+
+    const timer = setTimeout(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -35,7 +49,12 @@ export default function Login() {
       const result = await login(formData.email, formData.password);
 
       if (!result.success) {
-        setError(result.error);
+        // Check if error is about email verification
+        if (result.error?.includes("verify your email")) {
+          setError(result.error);
+        } else {
+          setError(result.error);
+        }
         setLoading(false);
         return;
       }
@@ -63,6 +82,51 @@ export default function Login() {
     }
   };
 
+  const handleResendVerification = async () => {
+    if (!formData.email) {
+      setResendMessage("Please enter your email address first.");
+      return;
+    }
+
+    // Prevent if still in cooldown
+    if (resendCooldown > 0) {
+      return;
+    }
+
+    setResendLoading(true);
+    setResendMessage("");
+
+    try {
+      const result = await resendVerificationEmail(formData.email);
+
+      if (result.success) {
+        setResendMessage(
+          `${result.message} (Link expires in ${result.expiresIn})`
+        );
+        setResendCooldown(30); // Start 30-second cooldown after successful resend
+        setError(""); // Clear error message
+      } else {
+        // Check if error includes cooldown wait time
+        if (result.error?.includes("Please wait")) {
+          setResendMessage(result.error);
+          // Extract wait time from error message (e.g., "Please wait 25 seconds")
+          const match = result.error.match(/(\d+)\s+second/);
+          if (match) {
+            const waitSeconds = parseInt(match[1]);
+            setResendCooldown(waitSeconds);
+          }
+        } else {
+          setResendMessage(result.error);
+        }
+      }
+    } catch (err) {
+      setResendMessage("Failed to resend verification email. Try again.");
+      console.error("Resend error:", err);
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0d0d0d] px-4 py-12">
       <div
@@ -77,16 +141,76 @@ export default function Login() {
         </div>
 
         {error && (
-          <div
-            className="px-4 py-2 rounded-lg text-sm"
-            style={{
-              background: "#ef444415",
-              borderColor: "#ef444430",
-              color: "#ef4444",
-              border: "1px solid #ef444430",
-            }}
-          >
-            {error}
+          <div className="space-y-3">
+            <div
+              className="px-4 py-2 rounded-lg text-sm"
+              style={{
+                background: "#ef444415",
+                borderColor: "#ef444430",
+                color: "#ef4444",
+                border: "1px solid #ef444430",
+              }}
+            >
+              {error}
+            </div>
+
+            {/* Resend button if email verification error */}
+            {error?.includes("verify your email") && (
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={resendLoading || resendCooldown > 0}
+                className="w-full py-2 px-3 rounded-lg text-sm font-medium transition-all duration-200"
+                style={{
+                  background:
+                    resendLoading || resendCooldown > 0
+                      ? "#fbbf2415"
+                      : "#fbbf2430",
+                  color: "#fbbf24",
+                  border: "1px solid #fbbf2420",
+                  opacity: resendLoading || resendCooldown > 0 ? 0.6 : 1,
+                  cursor:
+                    resendLoading || resendCooldown > 0
+                      ? "not-allowed"
+                      : "pointer",
+                }}
+                onMouseEnter={(e) => {
+                  if (!resendLoading && resendCooldown <= 0)
+                    e.target.style.background = "#fbbf2440";
+                }}
+                onMouseLeave={(e) => {
+                  if (!resendLoading && resendCooldown <= 0)
+                    e.target.style.background = "#fbbf2430";
+                }}
+              >
+                {resendLoading
+                  ? "Sending..."
+                  : resendCooldown > 0
+                  ? `Wait ${resendCooldown}s`
+                  : "Resend Verification Email"}
+              </button>
+            )}
+
+            {/* Resend status message */}
+            {resendMessage && (
+              <div
+                className="px-4 py-2 rounded-lg text-sm"
+                style={{
+                  background: resendMessage.includes("successfully")
+                    ? "#10b98115"
+                    : "#ef444415",
+                  color: resendMessage.includes("successfully")
+                    ? "#10b981"
+                    : "#ef4444",
+                  border: "1px solid",
+                  borderColor: resendMessage.includes("successfully")
+                    ? "#10b98130"
+                    : "#ef444430",
+                }}
+              >
+                {resendMessage}
+              </div>
+            )}
           </div>
         )}
 
@@ -140,6 +264,15 @@ export default function Login() {
                 className="w-full pl-9 pr-3 py-2.5 bg-[#0d0d0d] border border-[#1f1f1f] rounded-lg text-white placeholder-[#555] text-sm focus:outline-none focus:border-purple-500 transition-colors"
                 placeholder="••••••••"
               />
+            </div>
+            <div className="mt-2 text-right">
+              <button
+                type="button"
+                onClick={() => (window.location.href = "/forgot-password")}
+                className="text-xs text-[#a855f7] hover:text-[#9333ea] transition"
+              >
+                Forgot Password?
+              </button>
             </div>
           </div>
 

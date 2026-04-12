@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -357,7 +357,6 @@ export default function Navbar() {
                 </button>
               );
             })}
-            
           </nav>
         </div>
       )}

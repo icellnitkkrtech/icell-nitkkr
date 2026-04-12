@@ -1,12 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Mail, Lock, User, Phone, BookOpen, GraduationCap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
 
 export default function Register() {
   const nitkkrEmailRegex = /^[a-zA-Z0-9._%+-]+@nitkkr\.ac\.in$/i;
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, resendVerificationEmail } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -19,9 +19,38 @@ export default function Register() {
   const [successMessage, setSuccessMessage] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0); // Cooldown countdown in seconds
 
-  const branches = ["CSE","IT","AIDS","AIML","MnC", "ECE", "ME", "Civil", "EE", "PIE","IIOT","SET","Robotics","Others"];
+  const branches = [
+    "CSE",
+    "IT",
+    "AIDS",
+    "AIML",
+    "MnC",
+    "ECE",
+    "ME",
+    "Civil",
+    "EE",
+    "PIE",
+    "IIOT",
+    "SET",
+    "Robotics",
+    "Others",
+  ];
   const years = ["1", "2", "3", "4"];
+
+  // Cooldown timer effect
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+
+    const timer = setTimeout(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -53,7 +82,8 @@ export default function Register() {
             "Registration successful. Check your inbox for the verification link."
         );
         setSuccess(true);
-        setTimeout(() => navigate("/login"), 2500);
+        setResendCooldown(30); // Start 30-second cooldown after registration
+        // Don't auto-redirect immediately, let user see options
       } else {
         setError(result.error || "Registration failed. Please try again.");
       }
@@ -65,21 +95,140 @@ export default function Register() {
     }
   };
 
+  const handleResendVerification = async () => {
+    setResendLoading(true);
+    setResendMessage("");
+
+    // Prevent if still in cooldown
+    if (resendCooldown > 0) {
+      setResendLoading(false);
+      return;
+    }
+
+    try {
+      const result = await resendVerificationEmail(formData.email);
+
+      if (result.success) {
+        setResendMessage(
+          `${result.message} (Link expires in ${result.expiresIn})`
+        );
+        setResendCooldown(30); // Start 30-second cooldown after successful resend
+      } else {
+        // Check if error includes cooldown wait time
+        if (result.error?.includes("Please wait")) {
+          setResendMessage(result.error);
+          // Extract wait time from error message (e.g., "Please wait 25 seconds")
+          const match = result.error.match(/(\d+)\s+second/);
+          if (match) {
+            const waitSeconds = parseInt(match[1]);
+            setResendCooldown(waitSeconds);
+          }
+        } else {
+          setResendMessage(result.error);
+        }
+      }
+    } catch (err) {
+      setResendMessage("Failed to resend verification email. Try again.");
+      console.error("Resend error:", err);
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0d0d0d]">
+      <div className="min-h-screen flex items-center justify-center bg-[#0d0d0d] px-4 py-12">
         <div
-          className="p-6 rounded-xl border text-center max-w-sm"
+          className="p-8 rounded-xl border text-center max-w-sm space-y-5"
           style={{
             background: "#111111",
             borderColor: "#10b98130",
           }}
         >
-          <div className="text-3xl mb-3">✓</div>
-          <h2 className="text-xl font-bold text-white mb-2">
+          <div className="text-5xl mb-4">✓</div>
+          <h2 className="text-2xl font-bold text-white">
             Registration Successful!
           </h2>
           <p className="text-sm text-[#555]">{successMessage}</p>
+
+          {/* Resend button section - Always show button + message */}
+          <div className="space-y-3 pt-4">
+            <p className="text-xs text-[#777]">Didn't receive the email?</p>
+            <button
+              onClick={handleResendVerification}
+              disabled={resendLoading || resendCooldown > 0}
+              className="w-full py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-200"
+              style={{
+                background:
+                  resendLoading || resendCooldown > 0
+                    ? "#fbbf2415"
+                    : "#fbbf2430",
+                color: "#fbbf24",
+                border: "1px solid #fbbf2420",
+                opacity: resendLoading || resendCooldown > 0 ? 0.6 : 1,
+                cursor:
+                  resendLoading || resendCooldown > 0
+                    ? "not-allowed"
+                    : "pointer",
+              }}
+              onMouseEnter={(e) => {
+                if (!resendLoading && resendCooldown <= 0)
+                  e.target.style.background = "#fbbf2440";
+              }}
+              onMouseLeave={(e) => {
+                if (!resendLoading && resendCooldown <= 0)
+                  e.target.style.background = "#fbbf2430";
+              }}
+            >
+              {resendLoading
+                ? "Sending Email..."
+                : resendCooldown > 0
+                ? `Wait ${resendCooldown}s`
+                : "Resend Verification Email"}
+            </button>
+
+            {/* Resend status message - Always shown when present */}
+            {resendMessage && (
+              <div
+                className="px-4 py-2 rounded-lg text-sm"
+                style={{
+                  background: resendMessage.includes("successfully")
+                    ? "#10b98115"
+                    : "#ef444415",
+                  color: resendMessage.includes("successfully")
+                    ? "#10b981"
+                    : "#ef4444",
+                  border: "1px solid",
+                  borderColor: resendMessage.includes("successfully")
+                    ? "#10b98130"
+                    : "#ef444430",
+                }}
+              >
+                {resendMessage}
+              </div>
+            )}
+          </div>
+
+          {/* Continue to login button */}
+          <div className="pt-4 border-t" style={{ borderColor: "#1f1f1f" }}>
+            <button
+              onClick={() => navigate("/login")}
+              className="w-full py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-200"
+              style={{
+                background: "#a855f740",
+                color: "#a855f7",
+                border: "1px solid #a855f730",
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = "#a855f750";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = "#a855f740";
+              }}
+            >
+              Continue to Login
+            </button>
+          </div>
         </div>
       </div>
     );

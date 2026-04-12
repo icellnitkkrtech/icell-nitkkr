@@ -10,6 +10,7 @@ import {
   getUniqueEvents, // We will add this to help the frontend dropdown!
   getMainEvents, // Get main events from events collection
   getAttendanceOnlyEvents, // Get attendance-only events
+  deleteEventAttendance, // Delete event and all its records
 } from "../controllers/eventAttendanceController.js";
 
 const router = express.Router();
@@ -19,6 +20,9 @@ router.post("/mark", verifyUser, isAdmin, markStudentAttendance);
 
 // 2. GET /api/event-attendance/event - Use query params (e.g. ?name=Meet&date=2026-03-15)
 router.get("/event", verifyUser, isAdmin, getEventAttendance);
+
+// 2.1. DELETE /api/event-attendance/event - Delete event and all its records
+router.delete("/event", verifyUser, isAdmin, deleteEventAttendance);
 
 // 3. GET /api/event-attendance/events/list - Get a list of all unique events marked so far
 router.get("/events/list", verifyUser, isAdmin, getUniqueEvents);

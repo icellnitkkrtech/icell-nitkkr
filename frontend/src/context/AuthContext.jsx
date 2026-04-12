@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import api from "../services/api";
-
-const AuthContext = createContext();
+import { AuthContext } from "./AuthContextObject";
 
 // Helper function to decode JWT without external libraries
 const decodeJWT = (token) => {
@@ -144,6 +143,112 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const resendVerificationEmail = async (email) => {
+    try {
+      const response = await api.post("/auth/resend-verification-email", {
+        email,
+      });
+
+      return {
+        success: true,
+        message:
+          response.data?.message ||
+          "Verification email sent. Check your inbox.",
+        expiresIn: response.data?.expiresIn || "24 hours",
+      };
+    } catch (error) {
+      const errorMsg =
+        error.response?.data?.error ||
+        error.message ||
+        "Failed to resend email";
+      return { success: false, error: errorMsg };
+    }
+  };
+
+  const forgotPassword = async (email) => {
+    try {
+      const response = await api.post("/auth/forgot-password", { email });
+
+      return {
+        success: true,
+        message:
+          response.data?.message ||
+          "Password reset link sent. Check your inbox.",
+        expiresIn: response.data?.expiresIn || "24 hours",
+      };
+    } catch (error) {
+      const errorMsg =
+        error.response?.data?.error ||
+        error.message ||
+        "Failed to request password reset";
+      return { success: false, error: errorMsg };
+    }
+  };
+
+  const verifyResetToken = async (token) => {
+    try {
+      const response = await api.get("/auth/verify-reset-token", {
+        params: { token },
+      });
+
+      return {
+        valid: response.data?.valid || false,
+        message: response.data?.message || "Token verification failed",
+      };
+    } catch (error) {
+      return {
+        valid: false,
+        message:
+          error.response?.data?.message ||
+          error.message ||
+          "Token is invalid or expired",
+      };
+    }
+  };
+
+  const resetPassword = async (token, newPassword, confirmPassword) => {
+    try {
+      const response = await api.post("/auth/reset-password", {
+        token,
+        newPassword,
+        confirmPassword,
+      });
+
+      return {
+        success: response.data?.success || true,
+        message:
+          response.data?.message ||
+          "Password reset successfully. Please log in with your new password.",
+      };
+    } catch (error) {
+      const errorMsg =
+        error.response?.data?.error ||
+        error.message ||
+        "Failed to reset password";
+      return { success: false, error: errorMsg };
+    }
+  };
+
+  const resendResetLink = async (email) => {
+    try {
+      const response = await api.post("/auth/resend-reset-link", { email });
+
+      return {
+        success: true,
+        message:
+          response.data?.message ||
+          "Password reset link sent. Check your inbox.",
+        expiresIn: response.data?.expiresIn || "24 hours",
+      };
+    } catch (error) {
+      const errorMsg =
+        error.response?.data?.error ||
+        error.message ||
+        "Failed to resend reset link";
+      return { success: false, error: errorMsg };
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
@@ -158,17 +263,21 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, register, logout, getAuthHeader }}
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        resendVerificationEmail,
+        forgotPassword,
+        verifyResetToken,
+        resetPassword,
+        resendResetLink,
+        logout,
+        getAuthHeader,
+      }}
     >
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
 };
