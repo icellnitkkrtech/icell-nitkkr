@@ -14,6 +14,7 @@ import {
   X,
   ChevronRight,
   Award,
+  FileCog,
   Home,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
@@ -54,6 +55,12 @@ const adminLinks = [
     icon: Award,
     path: "/admin/certificates",
     color: "#f59e0b",
+  },
+  {
+    label: "Certificate Templates",
+    icon: FileCog,
+    path: "/admin/certificate-templates",
+    color: "#f97316",
   },
   {
     label: "Blogs",

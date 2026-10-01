@@ -137,6 +137,9 @@ export default function MemberProfile() {
           /\s+/g,
           "-"
         )}.svg`;
+      } else if (cert.certificate_type === "dynamic") {
+        endpoint = `/certificate/dynamic/download/${cert._id}`;
+        filename = `${cert.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`;
       }
 
       if (!endpoint) return;
@@ -145,7 +148,9 @@ export default function MemberProfile() {
         responseType: "arraybuffer",
       });
 
-      const blob = new Blob([response.data], { type: "image/svg+xml" });
+      const blob = new Blob([response.data], {
+        type: cert.certificate_type === "dynamic" ? "image/png" : "image/svg+xml",
+      });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -170,14 +175,22 @@ export default function MemberProfile() {
         endpoint = "/certificate/postholder/download";
       } else if (cert.certificate_type === "event") {
         endpoint = `/certificate/preview/${cert._id}`;
+      } else if (cert.certificate_type === "dynamic") {
+        endpoint = `/certificate/dynamic/download/${cert._id}`;
       }
 
       if (!endpoint) return;
 
-      const response = await api.get(endpoint);
-      const htmlWindow = window.open();
-      htmlWindow.document.write(response.data);
-      htmlWindow.document.close();
+      const response = await api.get(endpoint, {
+        responseType: cert.certificate_type === "dynamic" ? "blob" : "text",
+      });
+      const previewWindow = window.open();
+      if (cert.certificate_type === "dynamic") {
+        previewWindow.location.href = URL.createObjectURL(response.data);
+      } else {
+        previewWindow.document.write(response.data);
+        previewWindow.document.close();
+      }
     } catch (err) {
       console.error("Preview error:", err);
       alert("Failed to preview certificate: " + err.message);
@@ -457,6 +470,11 @@ export default function MemberProfile() {
                         badgeColor = "#06b6d4";
                         badgeBg = "#06b6d415";
                         icon = "⭐";
+                      } else if (cert.certificate_type === "dynamic") {
+                        borderColor = "#f97316";
+                        badgeColor = "#f97316";
+                        badgeBg = "#f9731615";
+                        icon = "🏅";
                       }
 
                       return (
@@ -477,6 +495,8 @@ export default function MemberProfile() {
                                     ? "Member Certificate"
                                     : cert.certificate_type === "post_holder"
                                     ? "Post Holder Certificate"
+                                    : cert.certificate_type === "dynamic"
+                                    ? cert.title || "Certificate"
                                     : "Achievement Certificate"}
                                 </h4>
                               </div>

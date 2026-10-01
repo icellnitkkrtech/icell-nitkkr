@@ -1,6 +1,8 @@
 // Certificate Controller
 import * as authModel from "../models/authModel.js";
 import * as certificateModel from "../models/certificateModel.js";
+import * as templateModel from "../models/certificateTemplateModel.js";
+import { renderCertificate } from "../utils/dynamicCertificateRenderer.js";
 import { getDB } from "../config/mongodb.js";
 import {
   generateMemberCertificateHTML,
@@ -160,6 +162,30 @@ export async function downloadEventCertificate(req, res) {
     res.send(svgCertificate);
   } catch (error) {
     console.error("Event certificate error:", error);
+    res.status(500).json({ error: "Failed to generate certificate" });
+  }
+}
+
+export async function downloadDynamicCertificate(req, res) {
+  try {
+    const certificate = await certificateModel.getCertificateById(req.params.certificateId);
+    if (!certificate || certificate.certificate_type !== "dynamic") {
+      return res.status(404).json({ error: "Certificate not found" });
+    }
+    if (certificate.user_id !== req.user.userId) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    const template = await templateModel.getTemplateById(certificate.metadata?.template_id);
+    if (!template) return res.status(404).json({ error: "Certificate template not found" });
+
+    const image = await renderCertificate(template, certificate.metadata.dynamic_data || {});
+    await certificateModel.updateCertificateDownloadStatus(certificate._id);
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Content-Disposition", `attachment; filename="${certificate.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${certificate._id}.png"`);
+    res.send(image);
+  } catch (error) {
+    console.error("Dynamic certificate download error:", error);
     res.status(500).json({ error: "Failed to generate certificate" });
   }
 }

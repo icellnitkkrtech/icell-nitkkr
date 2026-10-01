@@ -16,6 +16,8 @@ import AdminGallery from "./pages/admin/AdminGallery";
 import AdminStudents from "./pages/admin/AdminStudents";
 import AdminAttendance from "./pages/admin/AdminAttendance";
 import AdminCertificates from "./pages/admin/AdminCertificates";
+import AdminCertificateTemplates from "./pages/admin/AdminCertificateTemplates";
+import DynamicCertificateGenerator from "./pages/DynamicCertificateGenerator";
 import Login from "./pages/auth/login";
 import RegisterNew from "./pages/auth/register_new";
 import ForgotPassword from "./pages/auth/forgot_password";
@@ -223,6 +225,8 @@ export default function App() {
           <Route path="/admin/students" element={<AdminStudents />} />
           <Route path="/admin/attendance" element={<AdminAttendance />} />
           <Route path="/admin/certificates" element={<AdminCertificates />} />
+          <Route path="/admin/certificate-templates" element={<AdminCertificateTemplates />} />
+          <Route path="/certificates/generate" element={<DynamicCertificateGenerator />} />
           <Route path="/admin/profile" element={<AdminProfile />} />
           <Route path="*" element={<div>404 Not Found</div>} />
         </Routes>

@@ -128,6 +128,40 @@ export async function createBulkCertificates(certificatesData) {
   }
 }
 
+export async function createDynamicCertificate({
+  userId,
+  title,
+  templateId,
+  data,
+  email,
+  batchId,
+  issuedBy,
+}) {
+  const db = getDB();
+  const certificate = {
+    _id: uuidv4(),
+    user_id: userId,
+    certificate_type: "dynamic",
+    title,
+    description: "",
+    achievement: "",
+    issued_date: new Date(),
+    metadata: {
+      template_id: templateId,
+      dynamic_data: data,
+      email,
+      batch_id: batchId,
+      issued_by: issuedBy,
+    },
+    is_downloaded: false,
+    created_at: new Date(),
+    updated_at: new Date(),
+  };
+
+  await db.collection("certificates").insertOne(certificate);
+  return certificate;
+}
+
 /**
  * Get all issued certificates (for admin dashboard)
  */
