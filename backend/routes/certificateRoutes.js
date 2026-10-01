@@ -3,6 +3,7 @@ import {
   downloadMemberCertificate,
   downloadPostHolderCertificate,
   downloadEventCertificate,
+  downloadDynamicCertificate,
   getUserCertificates,
   getAllIssuedCertificates,
   uploadCertificateCSV,
@@ -24,6 +25,11 @@ router.get(
   "/event/download/:certificateId",
   verifyUser,
   downloadEventCertificate
+);
+router.get(
+  "/dynamic/download/:certificateId",
+  verifyUser,
+  downloadDynamicCertificate
 );
 router.get("/preview/:certificateId", verifyUser, previewCertificate);
 

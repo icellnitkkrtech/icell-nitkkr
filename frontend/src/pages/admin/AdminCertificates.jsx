@@ -308,6 +308,13 @@ export default function AdminCertificates() {
           {/* Action Buttons */}
           <div className="mb-6 flex flex-col md:flex-row gap-3">
             <button
+              onClick={() => navigate("/certificates/generate")}
+              className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all md:flex-1"
+              style={{ background: "#f59e0b30", color: "#fbbf24" }}
+            >
+              Generate from template
+            </button>
+            <button
               onClick={() => setShowCSVModal(true)}
               className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all md:flex-1"
               style={{

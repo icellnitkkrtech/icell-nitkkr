@@ -18,6 +18,8 @@ import galleryGroupRoutes from "./routes/galleryGroupRoutes.js";
 import eventAttendanceRoutes from "./routes/eventAttendanceRoutes.js";
 import newsletterRoutes from "./routes/newsletterRoutes.js";
 import certificateRoutes from "./routes/certificateRoutes.js";
+import certificateTemplateRoutes from "./routes/certificateTemplateRoutes.js";
+import dynamicCertificateRoutes from "./routes/dynamicCertificateRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 
 const app = express();
@@ -75,6 +77,8 @@ async function startServer() {
   app.use("/api/gallery-groups", galleryGroupRoutes);
   app.use("/api/newsletters", newsletterRoutes);
   app.use("/api/certificate", certificateRoutes);
+  app.use("/api/certificate-templates", certificateTemplateRoutes);
+  app.use("/api/dynamic-certificates", dynamicCertificateRoutes);
   app.use("/api/admin", adminRoutes);
 
   // ── 404 ───────────────────────────────────────────────────────────────────────

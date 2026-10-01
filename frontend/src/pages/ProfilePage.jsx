@@ -127,6 +127,9 @@ export default function ProfilePage() {
         filename = `icell-achievement-certificate-${cert.metadata?.achievement
           ?.replace(/\s+/g, "-")
           .toLowerCase()}.svg`;
+      } else if (cert.certificate_type === "dynamic") {
+        endpoint = `/certificate/dynamic/download/${cert._id}`;
+        filename = `${cert.title.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`;
       }
 
       const response = await api.get(endpoint, {
@@ -150,11 +153,19 @@ export default function ProfilePage() {
 
   const previewCertificate = async (cert) => {
     try {
-      const response = await api.get(`/certificate/preview/${cert._id}`);
-      // Open preview in new tab
+      const response = await api.get(
+        cert.certificate_type === "dynamic"
+          ? `/certificate/dynamic/download/${cert._id}`
+          : `/certificate/preview/${cert._id}`,
+        { responseType: cert.certificate_type === "dynamic" ? "blob" : "text" }
+      );
       const newWindow = window.open();
-      newWindow.document.write(response.data);
-      newWindow.document.close();
+      if (cert.certificate_type === "dynamic") {
+        newWindow.location.href = URL.createObjectURL(response.data);
+      } else {
+        newWindow.document.write(response.data);
+        newWindow.document.close();
+      }
     } catch (err) {
       console.error("Failed to preview certificate:", err);
       alert("Failed to load certificate preview.");
@@ -409,6 +420,12 @@ export default function ProfilePage() {
                         }
                       </p>
                     </div>
+                    <div className="rounded-lg p-3 text-center" style={{ background: "#0d0d0d" }}>
+                      <p className="text-[#555] text-xs mb-1">Dynamic</p>
+                      <p className="text-lg font-bold text-[#f97316]">
+                        {certificates.filter((c) => c.certificate_type === "dynamic").length}
+                      </p>
+                    </div>
                   </div>
 
                   {/* Certificates List */}
@@ -434,6 +451,11 @@ export default function ProfilePage() {
                         badgeColor = "#06b6d4";
                         badgeBg = "#06b6d415";
                         icon = "⭐";
+                      } else if (cert.certificate_type === "dynamic") {
+                        borderColor = "#f97316";
+                        badgeColor = "#f97316";
+                        badgeBg = "#f9731615";
+                        icon = "🏅";
                       }
 
                       return (
@@ -454,6 +476,8 @@ export default function ProfilePage() {
                                     ? "Member Certificate"
                                     : cert.certificate_type === "post_holder"
                                     ? "Post Holder Certificate"
+                                    : cert.certificate_type === "dynamic"
+                                    ? cert.title || "Certificate"
                                     : "Achievement Certificate"}
                                 </h4>
                               </div>
