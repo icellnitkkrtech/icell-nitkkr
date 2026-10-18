@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Loader } from "lucide-react";
+import { Loader, ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import GalleryGroup from "../gallery/GalleryGroup";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
@@ -151,9 +152,9 @@ export default function GallerySection() {
           viewport={{ once: true, margin: "-100px" }}
           className="relative"
         >
-          {/* Groups Grid - Responsive layout */}
+          {/* Groups Grid - Responsive 2x3 layout (max 6 items on home page) */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {groups.map((group, index) => (
+            {groups.slice(0, 6).map((group, index) => (
               <motion.div
                 key={group._id}
                 variants={itemVariants}
@@ -167,14 +168,30 @@ export default function GallerySection() {
             ))}
           </div>
 
+          {/* View More Button */}
+          {groups.length > 0 && (
+            <motion.div
+              variants={itemVariants}
+              className="mt-12 sm:mt-16 flex flex-col items-center justify-center gap-3"
+            >
+              <Link
+                to="/gallery"
+                className="group relative inline-flex items-center gap-3 px-8 py-3.5 rounded-full bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-semibold text-sm sm:text-base transition-all duration-300 hover:shadow-[0_0_30px_rgba(250,204,21,0.4)] hover:scale-105 active:scale-95"
+              >
+                <span>View More Moments</span>
+                <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+              </Link>
+            </motion.div>
+          )}
+
           {/* Info text */}
           <motion.div
             variants={itemVariants}
-            className="mt-12 text-center text-white/60 text-sm"
+            className="mt-8 text-center text-white/60 text-sm"
           >
             <p>
-              {groups.reduce((sum, g) => sum + g.total_images, 0)} photos across{" "}
-              {groups.length} galleries
+              Showing {Math.min(groups.length, 6)} of {groups.length} galleries (
+              {groups.reduce((sum, g) => sum + g.total_images, 0)} total photos)
             </p>
           </motion.div>
         </motion.div>

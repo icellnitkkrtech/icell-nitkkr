@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import Home from "./pages/home";
 import EventsPage from "./pages/EventsPage";
+import GalleryPage from "./pages/GalleryPage";
 import NewsletterPage from "./pages/NewsletterPage";
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
@@ -120,6 +121,20 @@ export default function App() {
                 </div>
 
                 <EventsPage />
+              </div>
+            }
+          />
+
+          {/* Gallery Page */}
+          <Route
+            path="/gallery"
+            element={
+              <div className="min-h-screen flex flex-col bg-[#0d0d0d] text-white">
+                <div className="fixed top-6 w-full z-50 flex justify-center">
+                  <Navbar />
+                </div>
+
+                <GalleryPage />
               </div>
             }
           />

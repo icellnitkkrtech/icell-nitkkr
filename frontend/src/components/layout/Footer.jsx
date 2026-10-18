@@ -12,6 +12,7 @@ export default function Footer() {
   const links = [
     { text: "Home", href: "/" },
     { text: "Events", href: "/events" },
+    { text: "Gallery", href: "/gallery" },
     { text: "Newsletter", href: "/newsletter" },
     { text: "Team", href: "/team" },
   ];
