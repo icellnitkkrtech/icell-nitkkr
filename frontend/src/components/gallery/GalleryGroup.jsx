@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getOptimizedCloudinaryUrl, CLOUDINARY_PRESETS } from "../../utils/cloudinary";
 
 const GalleryGroup = ({ group, onImageDelete }) => {
   const [showCarousel, setShowCarousel] = useState(false);
@@ -54,10 +55,12 @@ const GalleryGroup = ({ group, onImageDelete }) => {
             <motion.img
               key={thumbnailUrl}
               src={
-                thumbnailUrl ||
+                getOptimizedCloudinaryUrl(thumbnailUrl, CLOUDINARY_PRESETS.thumbnail) ||
                 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%231a1a1a" width="400" height="300"/%3E%3C/svg%3E'
               }
               alt={groupName}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -101,13 +104,18 @@ const GalleryGroup = ({ group, onImageDelete }) => {
                 <>
                   <img
                     src={
-                      currentCarouselImage.image_url ||
+                      getOptimizedCloudinaryUrl(
+                        currentCarouselImage.image_url,
+                        CLOUDINARY_PRESETS.carousel
+                      ) ||
                       'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%231a1a1a" width="400" height="300"/%3E%3C/svg%3E'
                     }
                     alt={
                       currentCarouselImage.caption ||
                       `Image ${carouselIndex + 1}`
                     }
+                    loading="lazy"
+                    decoding="async"
                     className="h-full w-full object-cover"
                   />
                 </>
@@ -188,13 +196,18 @@ const GalleryGroup = ({ group, onImageDelete }) => {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
                       >
-                        <div className="relative h-48">
+                        <div className="relative h-48 bg-[#141414]">
                           <img
                             src={
-                              image.image_url ||
+                              getOptimizedCloudinaryUrl(
+                                image.image_url,
+                                CLOUDINARY_PRESETS.modalGrid
+                              ) ||
                               'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%231a1a1a" width="400" height="300"/%3E%3C/svg%3E'
                             }
                             alt={image.caption || `Image ${index + 1}`}
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover group-hover/modal-image:scale-105 transition-transform duration-300"
                           />
 
