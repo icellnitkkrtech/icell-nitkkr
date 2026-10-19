@@ -11,10 +11,20 @@ cloudinary.v2.config({
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const allowedTypes = new Set(["image/png", "image/jpeg"]);
 const allowedAlignments = new Set(["left", "center", "right"]);
+const SYSTEM_EMAIL_FIELD = {
+  id: "email",
+  label: "Email (required, not displayed)",
+  type: "text",
+  system: true,
+  hidden: true,
+};
 
 function validateFields(fields, width, height) {
-  if (!Array.isArray(fields) || fields.length > 50) throw new Error("Invalid template fields");
-  return fields.map((field) => {
+  if (!Array.isArray(fields)) throw new Error("Invalid template fields");
+  const userFields = fields.filter((field) => field?.id !== "email");
+  if (userFields.length > 49) throw new Error("Invalid template fields");
+  return [SYSTEM_EMAIL_FIELD, ...userFields].map((field) => {
+    if (field.system) return { ...SYSTEM_EMAIL_FIELD };
     if (!field?.id || !/^[a-z0-9_-]+$/i.test(field.id)) throw new Error("Invalid field ID");
     const x = Number(field.x); const y = Number(field.y);
     if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > width || y > height) throw new Error(`Field ${field.id} is outside the canvas`);

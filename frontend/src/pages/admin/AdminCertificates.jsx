@@ -1,368 +1,519 @@
-import { useState, useEffect } from "react";
-import { useAuth } from "../../hooks/useAuth";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../../services/api";
-import AdminSidebar from "../../components/admin/AdminSidebar";
 import {
+  AlertCircle,
   Award,
-  Plus,
-  Search,
+  CheckCircle,
+  ChevronLeft,
+  ChevronRight,
   Download,
+  FileText,
+  Search,
   Trash2,
-  Eye,
-  Filter,
   Upload,
   X,
-  CheckCircle,
-  AlertCircle,
 } from "lucide-react";
+import { useAuth } from "../../hooks/useAuth";
+import api from "../../services/api";
+import AdminSidebar from "../../components/admin/AdminSidebar";
 
+/* ------------------------------------------------------------------ */
+/* Constants                                                           */
+/* ------------------------------------------------------------------ */
+const MAX_CSV_BYTES = 5 * 1024 * 1024; // maximum, NOT minimum
+const MAX_CSV_ROWS = 2000;
+const PAGE_SIZE = 20;
+const REQUIRED_HEADERS = ["email", "name", "achievement"];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PENDING_BATCH_KEY = "certificates:pendingBatch";
+const ALLOWED_ROLES = ["admin", "post_holder"];
+
+const TYPE_META = {
+  member: { label: "Member", color: "#fbbf24", bg: "#fbbf2415", icon: "🎖️" },
+  post_holder: { label: "Post Holder", color: "#e94560", bg: "#e9456015", icon: "👑" },
+  event: { label: "Achievement", color: "#06b6d4", bg: "#06b6d415", icon: "⭐" },
+};
+const UNKNOWN_TYPE = { label: "Unknown", color: "#666666", bg: "#66666610", icon: "📜" };
+
+/* ------------------------------------------------------------------ */
+/* CSV helpers (RFC 4180: quotes, CRLF, BOM, embedded commas/newlines) */
+/* ------------------------------------------------------------------ */
+function parseCsv(text) {
+  const src = text.replace(/^\uFEFF/, "");
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+  let line = 1;
+  let rowStartLine = 1;
+
+  const pushRow = () => {
+    row.push(cell);
+    cell = "";
+    if (row.some((c) => c.trim() !== "")) rows.push({ cells: row, line: rowStartLine });
+    row = [];
+  };
+
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else inQuotes = false;
+      } else {
+        if (ch === "\n") line++;
+        cell += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && src[i + 1] === "\n") i++;
+      pushRow();
+      line++;
+      rowStartLine = line;
+    } else {
+      cell += ch;
+    }
+  }
+  pushRow();
+  return rows;
+}
+
+function analyseCsv(text) {
+  const rows = parseCsv(text);
+  if (rows.length < 2) {
+    return { records: [], issues: [], fatal: "CSV must contain a header row and at least one data row" };
+  }
+
+  const headers = rows[0].cells.map((h) => h.trim().toLowerCase());
+  const missing = REQUIRED_HEADERS.filter((h) => !headers.includes(h));
+  if (missing.length) {
+    return {
+      records: [],
+      issues: [],
+      fatal: `Missing required columns: ${missing.join(", ")}. Required: ${REQUIRED_HEADERS.join(", ")}`,
+    };
+  }
+  if (rows.length - 1 > MAX_CSV_ROWS) {
+    return { records: [], issues: [], fatal: `Too many rows (${rows.length - 1}). Maximum is ${MAX_CSV_ROWS} per upload` };
+  }
+
+  const idx = Object.fromEntries(REQUIRED_HEADERS.map((h) => [h, headers.indexOf(h)]));
+  const records = [];
+  const issues = [];
+  const seen = new Set();
+
+  for (const { cells, line } of rows.slice(1)) {
+    const email = (cells[idx.email] || "").trim();
+    const name = (cells[idx.name] || "").trim();
+    const achievement = (cells[idx.achievement] || "").trim();
+
+    if (!email || !name || !achievement) {
+      issues.push(`Line ${line}: email, name and achievement are all required`);
+      continue;
+    }
+    if (!EMAIL_RE.test(email)) {
+      issues.push(`Line ${line}: "${email}" is not a valid email`);
+      continue;
+    }
+    const key = `${email}|${name}|${achievement}`.toLowerCase();
+    if (seen.has(key)) {
+      issues.push(`Line ${line}: duplicate of an earlier row (skipped)`);
+      continue;
+    }
+    seen.add(key);
+    records.push({ email, name, achievement });
+  }
+
+  return { records, issues, fatal: records.length ? "" : "No valid rows found in this file" };
+}
+
+const csvCell = (value) => (/[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
+const toCsv = (records) =>
+  [REQUIRED_HEADERS.join(","), ...records.map((r) => REQUIRED_HEADERS.map((h) => csvCell(r[h])).join(","))].join("\r\n");
+
+const formatBytes = (bytes) =>
+  bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+
+const formatDate = (value) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+};
+
+const readPendingBatch = () => {
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_BATCH_KEY)) || null;
+  } catch {
+    return null;
+  }
+};
+
+const errorMessage = (err, fallback) => err?.response?.data?.error || err?.response?.data?.message || fallback;
+
+/* ------------------------------------------------------------------ */
+/* Small UI pieces                                                     */
+/* ------------------------------------------------------------------ */
+function Modal({ title, onClose, children, widthClass = "max-w-2xl" }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`max-h-[90vh] w-full ${widthClass} overflow-y-auto rounded-xl border border-[#1f1f1f] bg-[#111111] p-6`}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold">{title}</h2>
+          <button onClick={onClose} aria-label="Close" className="rounded-lg p-1 hover:bg-[#1f1f1f]">
+            <X size={20} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Toast({ toast, onClose }) {
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(onClose, 5000);
+    return () => clearTimeout(t);
+  }, [toast, onClose]);
+  if (!toast) return null;
+  const ok = toast.type === "success";
+  return (
+    <div
+      role="status"
+      className="fixed bottom-6 right-6 z-[60] flex max-w-sm items-start gap-2 rounded-lg border px-4 py-3 text-sm shadow-xl"
+      style={{
+        background: ok ? "#0f2a1f" : "#2a1212",
+        borderColor: ok ? "#10b98150" : "#ef444450",
+        color: ok ? "#6ee7b7" : "#fca5a5",
+      }}
+    >
+      {ok ? <CheckCircle size={16} className="mt-0.5 shrink-0" /> : <AlertCircle size={16} className="mt-0.5 shrink-0" />}
+      <span>{toast.message}</span>
+      <button onClick={onClose} aria-label="Dismiss" className="ml-2 opacity-70 hover:opacity-100">
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
 export default function AdminCertificates() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const isAllowed = !!user && ALLOWED_ROLES.includes(user.role);
+
   const [certificates, setCertificates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const deferredSearch = useDeferredValue(searchTerm);
   const [selectedFilter, setSelectedFilter] = useState("all");
+  const [page, setPage] = useState(1);
 
-  // CSV Upload states
-  const [csvFile, setCsvFile] = useState(null);
-  const [csvPreviewData, setCsvPreviewData] = useState([]);
-  const [csvErrors, setCsvErrors] = useState([]);
+  const [toast, setToast] = useState(null);
+  const [confirmState, setConfirmState] = useState(null); // { title, message, confirmLabel, onConfirm }
+
+  // CSV upload
   const [showCSVModal, setShowCSVModal] = useState(false);
+  const [csvFile, setCsvFile] = useState(null);
+  const [csvRecords, setCsvRecords] = useState([]);
+  const [csvIssues, setCsvIssues] = useState([]);
+  const [csvFatal, setCsvFatal] = useState("");
   const [csvUploading, setCsvUploading] = useState(false);
-  const [batchId, setBatchId] = useState(null);
-  const [certificateIds, setCertificateIds] = useState([]);
+  const [dragging, setDragging] = useState(false);
+
+  // Pending batch (survives refresh)
+  const [pendingBatch, setPendingBatch] = useState(readPendingBatch);
   const [confirmingBatch, setConfirmingBatch] = useState(false);
 
+  const notify = useCallback((type, message) => setToast({ type, message }), []);
+  const closeToast = useCallback(() => setToast(null), []);
+  const closeConfirm = useCallback(() => setConfirmState(null), []);
+  const fileInputRef = useRef(null);
+
+  /* ---- auth guard ------------------------------------------------- */
   useEffect(() => {
-    // Wait for auth to finish loading before checking user
-    if (
-      !authLoading &&
-      (!user || (user.role !== "admin" && user.role !== "post_holder"))
-    ) {
-      navigate("/");
-      return;
+    if (!authLoading && !isAllowed) navigate("/", { replace: true });
+  }, [authLoading, isAllowed, navigate]);
+
+  /* ---- data ------------------------------------------------------- */
+  const loadCertificates = useCallback(async (signal) => {
+    try {
+      const { data } = await api.get("/certificate/admin/all", { signal });
+      setCertificates(data?.certificates ?? []);
+      setLoadError("");
+    } catch (err) {
+      if (err?.code === "ERR_CANCELED") return;
+      setLoadError(errorMessage(err, "Could not load certificates"));
+    } finally {
+      if (!signal?.aborted) setLoading(false);
     }
+  }, []);
 
-    // Don't fetch if still waiting for auth
-    if (authLoading) {
-      return;
+  useEffect(() => {
+    if (authLoading || !isAllowed) return;
+    const controller = new AbortController();
+    loadCertificates(controller.signal);
+    return () => controller.abort();
+  }, [authLoading, isAllowed, loadCertificates]);
+
+  const persistBatch = (batch) => {
+    setPendingBatch(batch);
+    try {
+      if (batch) localStorage.setItem(PENDING_BATCH_KEY, JSON.stringify(batch));
+      else localStorage.removeItem(PENDING_BATCH_KEY);
+    } catch {
+      /* storage unavailable: state still works for this session */
     }
+  };
 
-    const fetchCertificates = async () => {
-      try {
-        const response = await api.get("/certificate/admin/all");
-        if (response.data && response.data.certificates) {
-          setCertificates(response.data.certificates);
-        }
-      } catch (err) {
-        console.warn("Could not fetch certificates:", err);
-        setCertificates([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+  /* ---- CSV handling ------------------------------------------------ */
+  const resetCsv = () => {
+    setCsvFile(null);
+    setCsvRecords([]);
+    setCsvIssues([]);
+    setCsvFatal("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
-    fetchCertificates();
-  }, [user, navigate, authLoading]);
+  const closeCsvModal = useCallback(() => {
+    if (csvUploading) return;
+    setShowCSVModal(false);
+    resetCsv();
+  }, [csvUploading]);
 
-  const handleCSVFileSelect = (e) => {
-    const file = e.target.files?.[0];
+  const processFile = async (file) => {
+    resetCsv();
     if (!file) return;
 
-    if (!file.name.endsWith(".csv")) {
-      alert("Please select a CSV file");
+    if (!/\.csv$/i.test(file.name)) {
+      setCsvFatal("Please select a .csv file");
+      return;
+    }
+    if (file.size === 0) {
+      setCsvFatal("This file is empty");
+      return;
+    }
+    if (file.size > MAX_CSV_BYTES) {
+      setCsvFatal(`File is ${formatBytes(file.size)}. Maximum allowed size is ${formatBytes(MAX_CSV_BYTES)}`);
       return;
     }
 
     setCsvFile(file);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result;
-      parseCsvContent(content);
-    };
-    reader.readAsText(file);
-  };
-
-  const parseCsvContent = (content) => {
     try {
-      const lines = content.trim().split("\n");
-      if (lines.length < 2) {
-        setCsvErrors(["CSV must contain header row and at least one data row"]);
-        setCsvPreviewData([]);
-        return;
-      }
-
-      const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
-      const requiredHeaders = ["email", "name", "achievement"];
-      const missingHeaders = requiredHeaders.filter(
-        (h) => !headers.includes(h)
-      );
-
-      if (missingHeaders.length > 0) {
-        setCsvErrors([
-          `Missing required columns: ${missingHeaders.join(
-            ", "
-          )}. Required: email, name, achievement`,
-        ]);
-        setCsvPreviewData([]);
-        return;
-      }
-
-      const emailIdx = headers.indexOf("email");
-      const nameIdx = headers.indexOf("name");
-      const achievementIdx = headers.indexOf("achievement");
-
-      const records = [];
-      const errors = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        const cells = lines[i].split(",").map((c) => c.trim());
-        if (
-          cells.length < 3 ||
-          !cells[emailIdx] ||
-          !cells[nameIdx] ||
-          !cells[achievementIdx]
-        ) {
-          errors.push(`Row ${i + 1}: Missing required data`);
-          continue;
-        }
-
-        records.push({
-          email: cells[emailIdx],
-          name: cells[nameIdx],
-          achievement: cells[achievementIdx],
-        });
-      }
-
-      if (errors.length > 0) {
-        setCsvErrors(errors);
-      }
-      setCsvPreviewData(records);
+      const { records, issues, fatal } = analyseCsv(await file.text());
+      setCsvRecords(records);
+      setCsvIssues(issues);
+      setCsvFatal(fatal);
     } catch (err) {
-      setCsvErrors(["Error parsing CSV: " + err.message]);
-      setCsvPreviewData([]);
+      setCsvFatal("Could not read this file: " + err.message);
     }
   };
 
   const handleCSVUpload = async () => {
-    if (!csvFile || csvPreviewData.length === 0) {
-      alert("No valid records to upload");
-      return;
-    }
-
+    if (csvUploading || !csvRecords.length) return;
     setCsvUploading(true);
-    const formData = new FormData();
-    formData.append("file", csvFile);
-
     try {
-      const response = await api.post(
-        "/certificate/admin/upload-csv",
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        }
-      );
+      // Upload a cleaned CSV so the server receives exactly what was previewed.
+      const cleanName = (csvFile?.name || "certificates.csv").replace(/\.csv$/i, "") + "-clean.csv";
+      const cleanFile = new File([toCsv(csvRecords)], cleanName, { type: "text/csv" });
+      const formData = new FormData();
+      formData.append("file", cleanFile);
 
-      setBatchId(response.data.batch_id);
-      setCertificateIds(response.data.certificate_ids || []);
-      alert(
-        `Successfully uploaded ${response.data.count} certificates. Click "Confirm Batch" to issue them.`
-      );
-      setCsvFile(null);
-      setCsvPreviewData([]);
-      setCsvErrors([]);
+      const { data } = await api.post("/certificate/admin/upload-csv", formData);
+      persistBatch({
+        batchId: data.batch_id,
+        certificateIds: data.certificate_ids || [],
+        count: data.count ?? csvRecords.length,
+      });
+      notify("success", `Uploaded ${data.count ?? csvRecords.length} certificates. Confirm the batch to issue them.`);
       setShowCSVModal(false);
+      resetCsv();
     } catch (err) {
-      console.error("CSV upload error:", err);
-      alert(
-        "Failed to upload CSV: " + (err.response?.data?.error || err.message)
-      );
+      notify("error", errorMessage(err, "Failed to upload CSV"));
     } finally {
       setCsvUploading(false);
     }
   };
 
   const handleConfirmBatch = async () => {
-    if (!batchId) {
-      alert("No batch to confirm");
-      return;
-    }
-
+    if (!pendingBatch?.batchId || confirmingBatch) return;
     setConfirmingBatch(true);
     try {
       await api.post("/certificate/admin/issue-batch", {
-        batchId: batchId,
-        certificateIds: certificateIds,
+        batchId: pendingBatch.batchId,
+        certificateIds: pendingBatch.certificateIds,
       });
-      alert("Batch certificates confirmed and issued!");
-      setBatchId(null);
-      setCertificateIds([]);
-
-      // Refresh certificates list
-      const response = await api.get("/certificate/admin/all");
-      if (response.data && response.data.certificates) {
-        setCertificates(response.data.certificates);
-      }
+      persistBatch(null);
+      notify("success", "Batch confirmed and certificates issued");
+      await loadCertificates();
     } catch (err) {
-      console.error("Batch confirmation error:", err);
-      alert(
-        "Failed to confirm batch: " + (err.response?.data?.error || err.message)
-      );
+      notify("error", errorMessage(err, "Failed to confirm batch"));
     } finally {
       setConfirmingBatch(false);
     }
   };
 
-  const handleDeleteCertificate = async (id) => {
-    if (!confirm("Are you sure you want to delete this certificate?")) return;
-
-    try {
-      await api.delete(`/certificate/admin/${id}`);
-      setCertificates(certificates.filter((c) => c._id !== id));
-    } catch (err) {
-      console.error("Error deleting certificate:", err);
-      alert("Failed to delete certificate");
-    }
+  const downloadSampleCsv = () => {
+    const sample = toCsv([
+      { email: "student@example.com", name: "Student Name", achievement: "First place, Hackathon 2026" },
+    ]);
+    const url = URL.createObjectURL(new Blob([sample], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "certificates-sample.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
-  const filteredCertificates = certificates.filter((cert) => {
-    const matchesSearch =
-      cert.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cert.user_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cert.metadata?.achievement
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase());
+  /* ---- delete ------------------------------------------------------ */
+  const requestDelete = (cert) =>
+    setConfirmState({
+      title: "Delete certificate",
+      message: `Delete the certificate for ${cert.user_name || cert.user_email || "this recipient"}? This cannot be undone.`,
+      confirmLabel: "Delete",
+      onConfirm: async () => {
+        try {
+          await api.delete(`/certificate/admin/${cert._id}`);
+          setCertificates((cur) => cur.filter((c) => c._id !== cert._id));
+          notify("success", "Certificate deleted");
+        } catch (err) {
+          notify("error", errorMessage(err, "Failed to delete certificate"));
+        } finally {
+          setConfirmState(null);
+        }
+      },
+    });
 
-    if (selectedFilter === "member")
-      return matchesSearch && cert.certificate_type === "member";
-    if (selectedFilter === "post_holder")
-      return matchesSearch && cert.certificate_type === "post_holder";
-    if (selectedFilter === "event")
-      return matchesSearch && cert.certificate_type === "event";
-    return matchesSearch;
-  });
+  /* ---- derived data ------------------------------------------------- */
+  const counts = useMemo(() => {
+    const c = { member: 0, post_holder: 0, event: 0 };
+    for (const cert of certificates) if (cert.certificate_type in c) c[cert.certificate_type]++;
+    return c;
+  }, [certificates]);
 
-  const memberCerts = certificates.filter(
-    (c) => c.certificate_type === "member"
-  ).length;
-  const postHolderCerts = certificates.filter(
-    (c) => c.certificate_type === "post_holder"
-  ).length;
-  const eventCerts = certificates.filter(
-    (c) => c.certificate_type === "event"
-  ).length;
+  const filteredCertificates = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    return certificates.filter((cert) => {
+      if (selectedFilter !== "all" && cert.certificate_type !== selectedFilter) return false;
+      if (!q) return true;
+      return [cert.user_name, cert.user_email, cert.metadata?.achievement, cert.metadata?.post_position].some((v) =>
+        v?.toLowerCase().includes(q)
+      );
+    });
+  }, [certificates, deferredSearch, selectedFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCertificates.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = filteredCertificates.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  if (authLoading || !isAllowed) return null;
+
+  const canUpload = !csvUploading && csvRecords.length > 0 && !csvFatal;
+
+  /* ---- render --------------------------------------------------------- */
   return (
-    <div
-      className="flex h-screen bg-[#0d0d0d] text-white"
-      style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-    >
+    <div className="flex h-screen bg-[#0d0d0d] text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
       <AdminSidebar />
 
-      {/* Main Content */}
       <div className="flex-1 overflow-auto">
         <div className="p-6 md:p-8 max-md:pt-20">
-          {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-1">Certificates</h1>
-            <p className="text-[#555]">
-              Manage and issue certificates to students
-            </p>
+            <h1 className="mb-1 text-3xl font-bold">Certificates</h1>
+            <p className="text-[#777]">Manage and issue certificates to students</p>
           </div>
 
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div
-              className="rounded-xl border p-6"
-              style={{ borderColor: "#1f1f1f", background: "#111111" }}
-            >
-              <p className="text-[#555] text-sm mb-2">Total Certificates</p>
-              <p className="text-3xl font-bold">{certificates.length}</p>
-            </div>
-            <div
-              className="rounded-xl border p-6"
-              style={{ borderColor: "#fbbf2430", background: "#fbbf2408" }}
-            >
-              <p className="text-[#999] text-sm mb-2">Member Certificates</p>
-              <p className="text-3xl font-bold text-[#fbbf24]">{memberCerts}</p>
-            </div>
-            <div
-              className="rounded-xl border p-6"
-              style={{ borderColor: "#e9456030", background: "#e9456008" }}
-            >
-              <p className="text-[#999] text-sm mb-2">Post Holder</p>
-              <p className="text-3xl font-bold text-[#e94560]">
-                {postHolderCerts}
-              </p>
-            </div>
-            <div
-              className="rounded-xl border p-6"
-              style={{ borderColor: "#06b6d430", background: "#06b6d408" }}
-            >
-              <p className="text-[#999] text-sm mb-2">Achievements</p>
-              <p className="text-3xl font-bold text-[#06b6d4]">{eventCerts}</p>
-            </div>
+          {/* Stats */}
+          <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-4">
+            <StatCard label="Total Certificates" value={certificates.length} border="#1f1f1f" bg="#111111" />
+            <StatCard label="Member Certificates" value={counts.member} color="#fbbf24" border="#fbbf2430" bg="#fbbf2408" />
+            <StatCard label="Post Holder" value={counts.post_holder} color="#e94560" border="#e9456030" bg="#e9456008" />
+            <StatCard label="Achievements" value={counts.event} color="#06b6d4" border="#06b6d430" bg="#06b6d408" />
           </div>
 
-          {/* Action Buttons */}
-          <div className="mb-6 flex flex-col md:flex-row gap-3">
-            <button
-              onClick={() => navigate("/certificates/generate")}
-              className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all md:flex-1"
-              style={{ background: "#f59e0b30", color: "#fbbf24" }}
-            >
-              Generate from template
-            </button>
-            <button
-              onClick={() => setShowCSVModal(true)}
-              className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all md:flex-1"
-              style={{
-                background: "#0ea5e930",
-                color: "#0ea5e9",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#0ea5e940";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#0ea5e930";
-              }}
-            >
-              <Upload size={18} />
-              Upload CSV
-            </button>
-            {batchId && (
+          {/* Pending batch banner */}
+          {pendingBatch && (
+            <div className="mb-6 flex flex-col gap-3 rounded-xl border border-[#10b98140] bg-[#10b98110] p-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="font-medium text-[#34d399]">
+                  {pendingBatch.count} uploaded certificate{pendingBatch.count === 1 ? "" : "s"} waiting to be issued
+                </p>
+                <p className="text-xs text-[#6b8f80]">They are not visible to recipients until you confirm this batch.</p>
+              </div>
               <button
                 onClick={handleConfirmBatch}
                 disabled={confirmingBatch}
-                className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all md:flex-1"
-                style={{
-                  background: confirmingBatch ? "#6b7280" : "#10b98130",
-                  color: confirmingBatch ? "#ffffff" : "#10b981",
-                }}
+                className="flex items-center justify-center gap-2 rounded-lg bg-[#10b981] px-5 py-2.5 font-semibold text-black disabled:opacity-50"
               >
                 <CheckCircle size={18} />
-                {confirmingBatch ? "Confirming..." : "Confirm Batch"}
+                {confirmingBatch ? "Confirming..." : "Confirm & issue batch"}
               </button>
-            )}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="mb-6 flex flex-col gap-3 md:flex-row">
+            <button
+              onClick={() => navigate("/admin/certificates/generate")}
+              className="flex items-center justify-center gap-2 rounded-lg bg-[#f59e0b30] px-6 py-3 font-medium text-[#fbbf24] transition-colors hover:bg-[#f59e0b40] md:flex-1"
+            >
+              <Award size={18} /> Generate from template
+            </button>
+            <button
+              onClick={() => setShowCSVModal(true)}
+              className="flex items-center justify-center gap-2 rounded-lg bg-[#0ea5e930] px-6 py-3 font-medium text-[#0ea5e9] transition-colors hover:bg-[#0ea5e940] md:flex-1"
+            >
+              <Upload size={18} /> Upload CSV
+            </button>
           </div>
 
-          {/* Search & Filter */}
-          <div className="mb-6 flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
+          {/* Search & filter */}
+          <div className="mb-6 flex flex-col gap-4 md:flex-row">
+            <div className="relative flex-1">
               <Search size={18} className="absolute left-3 top-3 text-[#555]" />
               <input
-                type="text"
+                type="search"
+                aria-label="Search certificates"
                 placeholder="Search by email, name, or achievement..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-[#111111] border border-[#1f1f1f] text-white placeholder-[#555] focus:outline-none focus:border-[#0ea5e9]"
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full rounded-lg border border-[#1f1f1f] bg-[#111111] py-2.5 pl-10 pr-4 text-white placeholder-[#555] focus:border-[#0ea5e9] focus:outline-none"
               />
             </div>
             <select
+              aria-label="Filter by type"
               value={selectedFilter}
-              onChange={(e) => setSelectedFilter(e.target.value)}
-              className="px-4 py-2.5 rounded-lg bg-[#111111] border border-[#1f1f1f] text-white focus:outline-none focus:border-[#0ea5e9]"
+              onChange={(e) => {
+                setSelectedFilter(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-lg border border-[#1f1f1f] bg-[#111111] px-4 py-2.5 text-white focus:border-[#0ea5e9] focus:outline-none"
             >
               <option value="all">All Types</option>
               <option value="member">Member</option>
@@ -371,280 +522,262 @@ export default function AdminCertificates() {
             </select>
           </div>
 
-          {/* Certificates Table */}
+          {/* Table */}
           {loading ? (
-            <div className="text-center py-12">
-              <div className="text-[#555]">Loading certificates...</div>
+            <p className="py-12 text-center text-[#777]">Loading certificates...</p>
+          ) : loadError ? (
+            <div className="rounded-xl border border-[#ef444430] bg-[#ef444410] p-8 text-center">
+              <p className="mb-3 text-[#fca5a5]">{loadError}</p>
+              <button
+                onClick={() => {
+                  setLoading(true);
+                  loadCertificates();
+                }}
+                className="rounded-lg border border-[#ef444450] px-4 py-2 text-sm text-[#fca5a5] hover:bg-[#ef444415]"
+              >
+                Retry
+              </button>
             </div>
-          ) : filteredCertificates.length > 0 ? (
-            <div
-              className="rounded-xl border overflow-hidden"
-              style={{ borderColor: "#1f1f1f" }}
-            >
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr
-                      style={{
-                        background: "#111111",
-                        borderBottom: "1px solid #1f1f1f",
-                      }}
-                    >
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-[#555] uppercase">
-                        Type
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-[#555] uppercase">
-                        Recipient
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-[#555] uppercase">
-                        Email
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-[#555] uppercase">
-                        Details
-                      </th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-[#555] uppercase">
-                        Date
-                      </th>
-                      <th className="px-6 py-4 text-right text-xs font-semibold text-[#555] uppercase">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredCertificates.map((cert) => {
-                      let typeLabel = "Unknown";
-                      let typeColor = "#666";
-                      let typeBg = "#66666610";
-                      let icon = "📜";
-
-                      if (cert.certificate_type === "member") {
-                        typeLabel = "Member";
-                        typeColor = "#fbbf24";
-                        typeBg = "#fbbf2415";
-                        icon = "🎖️";
-                      } else if (cert.certificate_type === "post_holder") {
-                        typeLabel = "Post Holder";
-                        typeColor = "#e94560";
-                        typeBg = "#e9456015";
-                        icon = "👑";
-                      } else if (cert.certificate_type === "event") {
-                        typeLabel = "Achievement";
-                        typeColor = "#06b6d4";
-                        typeBg = "#06b6d415";
-                        icon = "⭐";
-                      }
-
-                      return (
-                        <tr
-                          key={cert._id}
-                          className="border-t hover:bg-[#111111] transition-colors"
-                          style={{ borderColor: "#1f1f1f" }}
-                        >
-                          <td className="px-6 py-4">
-                            <span
-                              className="px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 w-fit"
-                              style={{
-                                background: typeBg,
-                                color: typeColor,
-                              }}
-                            >
-                              <span>{icon}</span>
-                              {typeLabel}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="font-medium">
-                              {cert.user_name || "(Deleted User)"}
-                            </p>
-                          </td>
-                          <td className="px-6 py-4 text-[#999]">
-                            {cert.user_email || "N/A"}
-                          </td>
-                          <td className="px-6 py-4 text-[#999]">
-                            {cert.certificate_type === "event"
-                              ? cert.metadata?.achievement
-                              : cert.certificate_type === "post_holder"
-                              ? cert.metadata?.post_position
-                              : "Member"}
-                          </td>
-                          <td className="px-6 py-4 text-[#999]">
-                            {new Date(cert.issued_date).toLocaleDateString(
-                              "en-US",
-                              {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              }
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-end gap-2">
-                              <button
-                                onClick={() =>
-                                  handleDeleteCertificate(cert._id)
-                                }
-                                className="p-2 rounded-lg hover:bg-[#1f1f1f] transition-colors"
-                                title="Delete"
+          ) : filteredCertificates.length ? (
+            <>
+              <div className="overflow-hidden rounded-xl border border-[#1f1f1f]">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-[#1f1f1f] bg-[#111111]">
+                        {["Type", "Recipient", "Email", "Details", "Date"].map((h) => (
+                          <th key={h} className="px-6 py-4 text-left text-xs font-semibold uppercase text-[#777]">
+                            {h}
+                          </th>
+                        ))}
+                        <th className="px-6 py-4 text-right text-xs font-semibold uppercase text-[#777]">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageItems.map((cert) => {
+                        const meta = TYPE_META[cert.certificate_type] || UNKNOWN_TYPE;
+                        const details =
+                          cert.certificate_type === "event"
+                            ? cert.metadata?.achievement
+                            : cert.certificate_type === "post_holder"
+                            ? cert.metadata?.post_position
+                            : "Member";
+                        return (
+                          <tr key={cert._id} className="border-t border-[#1f1f1f] transition-colors hover:bg-[#111111]">
+                            <td className="px-6 py-4">
+                              <span
+                                className="flex w-fit items-center gap-1 rounded-full px-3 py-1 text-xs font-medium"
+                                style={{ background: meta.bg, color: meta.color }}
                               >
-                                <Trash2 size={16} className="text-[#ef4444]" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                                <span aria-hidden>{meta.icon}</span>
+                                {meta.label}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 font-medium">{cert.user_name || "(Deleted User)"}</td>
+                            <td className="px-6 py-4 text-[#999]">{cert.user_email || "N/A"}</td>
+                            <td className="px-6 py-4 text-[#999]">{details || "—"}</td>
+                            <td className="whitespace-nowrap px-6 py-4 text-[#999]">{formatDate(cert.issued_date)}</td>
+                            <td className="px-6 py-4">
+                              <div className="flex justify-end">
+                                <button
+                                  onClick={() => requestDelete(cert)}
+                                  aria-label={`Delete certificate for ${cert.user_name || cert.user_email}`}
+                                  className="rounded-lg p-2 transition-colors hover:bg-[#1f1f1f]"
+                                >
+                                  <Trash2 size={16} className="text-[#ef4444]" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+
+              <div className="mt-4 flex items-center justify-between text-sm text-[#777]">
+                <span>
+                  Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredCertificates.length)} of{" "}
+                  {filteredCertificates.length}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage(safePage - 1)}
+                    disabled={safePage <= 1}
+                    aria-label="Previous page"
+                    className="rounded-lg border border-[#1f1f1f] p-2 hover:bg-[#111] disabled:opacity-30"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span>
+                    {safePage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage(safePage + 1)}
+                    disabled={safePage >= totalPages}
+                    aria-label="Next page"
+                    className="rounded-lg border border-[#1f1f1f] p-2 hover:bg-[#111] disabled:opacity-30"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            </>
           ) : (
-            <div
-              className="rounded-xl border p-12 text-center"
-              style={{ borderColor: "#1f1f1f" }}
-            >
+            <div className="rounded-xl border border-[#1f1f1f] p-12 text-center">
               <Award size={40} className="mx-auto mb-4 text-[#555]" />
-              <p className="text-[#555]">No certificates found</p>
-              <p className="text-[#444] text-sm mt-1">
-                Upload a CSV file to issue certificates in bulk
-              </p>
+              <p className="text-[#777]">No certificates found</p>
+              <p className="mt-1 text-sm text-[#555]">Upload a CSV file to issue certificates in bulk</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* CSV Upload Modal */}
+      {/* CSV modal */}
       {showCSVModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div
-            className="bg-[#111111] rounded-xl border p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            style={{ borderColor: "#1f1f1f" }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Upload Certificates CSV</h2>
-              <button
-                onClick={() => setShowCSVModal(false)}
-                className="p-1 hover:bg-[#1f1f1f] rounded-lg"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <p className="text-[#555] text-sm mb-4">
-              CSV must have columns: <code>email</code>, <code>name</code>,{" "}
-              <code>achievement</code>
+        <Modal title="Upload Certificates CSV" onClose={closeCsvModal}>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm text-[#777]">
+            <p>
+              Required columns: <code className="text-[#aaa]">email</code>, <code className="text-[#aaa]">name</code>,{" "}
+              <code className="text-[#aaa]">achievement</code>. Max {formatBytes(MAX_CSV_BYTES)} / {MAX_CSV_ROWS} rows.
             </p>
-
-            {/* File Input */}
-            <div className="mb-4">
-              <label className="block mb-2 text-sm font-medium">
-                Select CSV File
-              </label>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleCSVFileSelect}
-                className="w-full px-4 py-2 rounded-lg bg-[#0d0d0d] border border-[#1f1f1f] text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:bg-[#0ea5e9] file:text-white file:border-0 file:cursor-pointer"
-              />
-            </div>
-
-            {/* Error Messages */}
-            {csvErrors.length > 0 && (
-              <div className="mb-4 p-3 rounded-lg bg-[#ef444415] border border-[#ef444430]">
-                <p className="text-[#ef4444] text-sm font-medium mb-2 flex items-center gap-2">
-                  <AlertCircle size={16} />
-                  Errors
-                </p>
-                <ul className="text-[#ff6b6b] text-xs space-y-1">
-                  {csvErrors.map((err, idx) => (
-                    <li key={idx}>• {err}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Preview Data */}
-            {csvPreviewData.length > 0 && (
-              <div className="mb-4">
-                <p className="text-sm font-medium mb-2">
-                  Preview ({csvPreviewData.length} records)
-                </p>
-                <div className="bg-[#0d0d0d] rounded-lg border border-[#1f1f1f] overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid #1f1f1f" }}>
-                        <th className="px-4 py-2 text-left text-[#555]">
-                          Email
-                        </th>
-                        <th className="px-4 py-2 text-left text-[#555]">
-                          Name
-                        </th>
-                        <th className="px-4 py-2 text-left text-[#555]">
-                          Achievement
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {csvPreviewData.slice(0, 5).map((row, idx) => (
-                        <tr
-                          key={idx}
-                          style={{ borderBottom: "1px solid #1f1f1f" }}
-                        >
-                          <td className="px-4 py-2 text-[#999]">{row.email}</td>
-                          <td className="px-4 py-2 text-[#999]">{row.name}</td>
-                          <td className="px-4 py-2 text-[#999]">
-                            {row.achievement}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {csvPreviewData.length > 5 && (
-                    <div className="px-4 py-2 text-[#555] text-xs">
-                      ... and {csvPreviewData.length - 5} more
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowCSVModal(false)}
-                className="flex-1 px-4 py-2 rounded-lg border transition-colors"
-                style={{ borderColor: "#1f1f1f" }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCSVUpload}
-                disabled={
-                  csvUploading ||
-                  csvPreviewData.length === 0 ||
-                  csvErrors.length > 0
-                }
-                className="flex-1 px-4 py-2 rounded-lg font-medium transition-all"
-                style={{
-                  background:
-                    csvUploading ||
-                    csvPreviewData.length === 0 ||
-                    csvErrors.length > 0
-                      ? "#6b7280"
-                      : "#0ea5e930",
-                  color:
-                    csvUploading ||
-                    csvPreviewData.length === 0 ||
-                    csvErrors.length > 0
-                      ? "#ffffff"
-                      : "#0ea5e9",
-                }}
-              >
-                {csvUploading ? "Uploading..." : "Upload Certificates"}
-              </button>
-            </div>
+            <button onClick={downloadSampleCsv} className="flex items-center gap-1 text-[#0ea5e9] hover:underline">
+              <Download size={14} /> Sample CSV
+            </button>
           </div>
-        </div>
+
+          <label
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              processFile(e.dataTransfer.files?.[0]);
+            }}
+            className={`mb-4 flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
+              dragging ? "border-[#0ea5e9] bg-[#0ea5e910]" : "border-[#2a2a2a] hover:border-[#0ea5e980]"
+            }`}
+          >
+            <FileText size={28} className="text-[#0ea5e9]" />
+            {csvFile ? (
+              <p className="text-sm">
+                {csvFile.name} <span className="text-[#777]">({formatBytes(csvFile.size)})</span>
+              </p>
+            ) : (
+              <p className="text-sm text-[#999]">Drop a CSV here or click to browse</p>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(e) => processFile(e.target.files?.[0])}
+            />
+          </label>
+
+          {csvFatal && (
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-[#ef444430] bg-[#ef444415] p-3 text-sm text-[#fca5a5]">
+              <AlertCircle size={16} className="mt-0.5 shrink-0" /> {csvFatal}
+            </div>
+          )}
+
+          {csvIssues.length > 0 && !csvFatal && (
+            <div className="mb-4 rounded-lg border border-[#f59e0b30] bg-[#f59e0b10] p-3">
+              <p className="mb-2 flex items-center gap-2 text-sm font-medium text-[#fbbf24]">
+                <AlertCircle size={16} />
+                {csvIssues.length} row{csvIssues.length === 1 ? "" : "s"} will be skipped
+              </p>
+              <ul className="max-h-28 space-y-1 overflow-y-auto text-xs text-[#d4a84b]">
+                {csvIssues.slice(0, 50).map((issue, i) => (
+                  <li key={i}>• {issue}</li>
+                ))}
+                {csvIssues.length > 50 && <li>…and {csvIssues.length - 50} more</li>}
+              </ul>
+            </div>
+          )}
+
+          {csvRecords.length > 0 && (
+            <div className="mb-4">
+              <p className="mb-2 text-sm font-medium">Preview ({csvRecords.length} valid records)</p>
+              <div className="overflow-x-auto rounded-lg border border-[#1f1f1f] bg-[#0d0d0d]">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[#1f1f1f] text-left text-[#777]">
+                      <th className="px-4 py-2">Email</th>
+                      <th className="px-4 py-2">Name</th>
+                      <th className="px-4 py-2">Achievement</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {csvRecords.slice(0, 5).map((row, i) => (
+                      <tr key={i} className="border-b border-[#1f1f1f] text-[#999]">
+                        <td className="px-4 py-2">{row.email}</td>
+                        <td className="px-4 py-2">{row.name}</td>
+                        <td className="px-4 py-2">{row.achievement}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {csvRecords.length > 5 && (
+                  <p className="px-4 py-2 text-xs text-[#777]">…and {csvRecords.length - 5} more</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              onClick={closeCsvModal}
+              disabled={csvUploading}
+              className="flex-1 rounded-lg border border-[#1f1f1f] px-4 py-2 transition-colors hover:bg-[#1a1a1a] disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCSVUpload}
+              disabled={!canUpload}
+              className="flex-1 rounded-lg bg-[#0ea5e930] px-4 py-2 font-medium text-[#0ea5e9] transition-colors hover:bg-[#0ea5e940] disabled:cursor-not-allowed disabled:bg-[#2a2a2a] disabled:text-[#777]"
+            >
+              {csvUploading ? "Uploading..." : `Upload ${csvRecords.length || ""} certificates`.trim()}
+            </button>
+          </div>
+        </Modal>
       )}
+
+      {/* Confirm dialog */}
+      {confirmState && (
+        <Modal title={confirmState.title} onClose={closeConfirm} widthClass="max-w-md">
+          <p className="mb-6 text-sm text-[#999]">{confirmState.message}</p>
+          <div className="flex gap-3">
+            <button onClick={closeConfirm} className="flex-1 rounded-lg border border-[#1f1f1f] px-4 py-2 hover:bg-[#1a1a1a]">
+              Cancel
+            </button>
+            <button
+              onClick={confirmState.onConfirm}
+              className="flex-1 rounded-lg bg-[#ef4444] px-4 py-2 font-semibold text-white hover:bg-[#dc2626]"
+            >
+              {confirmState.confirmLabel || "Confirm"}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      <Toast toast={toast} onClose={closeToast} />
+    </div>
+  );
+}
+
+function StatCard({ label, value, color = "#ffffff", border, bg }) {
+  return (
+    <div className="rounded-xl border p-6" style={{ borderColor: border, background: bg }}>
+      <p className="mb-2 text-sm text-[#999]">{label}</p>
+      <p className="text-3xl font-bold" style={{ color }}>
+        {value}
+      </p>
     </div>
   );
 }
