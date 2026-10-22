@@ -1,29 +1,37 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Edit2, Plus, Save, Trash2, Upload, X } from "lucide-react";
+import { CheckCircle2, Edit2, Info, Plus, Save, Trash2, Upload, X } from "lucide-react";
 import AdminSidebar from "../../components/admin/AdminSidebar";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 
 const DEFAULT_CANVAS = { width: 1600, height: 1200 };
-const FONT_FAMILIES = ["Arial", "Georgia", "Times New Roman", "Montserrat", "Playfair Display", "Great Vibes"];
+const FONT_FAMILIES = ["Arial", "Georgia", "Times New Roman", "Verdana", "Helvetica"];
 const ALIGN_TRANSLATE = { left: "0%", center: "-50%", right: "-100%" };
+let fieldKeyCounter = 0;
+const nextFieldKey = () => `fkey_${Date.now()}_${++fieldKeyCounter}`;
+
 const SYSTEM_EMAIL_FIELD = {
   id: "email",
   label: "Email (required, not displayed)",
   sample: "student@example.com",
   system: true,
   hidden: true,
+  x: 0,
+  y: 0,
+  fontSize: 32,
+  maxWidth: 0,
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-const createField = (n) => ({
+const createField = (n, canvas = DEFAULT_CANVAS) => ({
+  _key: nextFieldKey(),
   id: `field_${n}`,
   label: `Field ${n}`,
   sample: "Sample Text",
-  x: 800,
-  y: 600,
-  maxWidth: 1000,
+  x: Math.round((canvas?.width || DEFAULT_CANVAS.width) / 2),
+  y: Math.round((canvas?.height || DEFAULT_CANVAS.height) / 2),
+  maxWidth: Math.min(1000, canvas?.width || DEFAULT_CANVAS.width),
   autoFit: true,
   fontSize: 48,
   fontFamily: "Arial",
@@ -35,7 +43,9 @@ const createField = (n) => ({
 
 const withSystemEmailField = (templateFields = []) => [
   SYSTEM_EMAIL_FIELD,
-  ...templateFields.filter((field) => field.id !== SYSTEM_EMAIL_FIELD.id),
+  ...templateFields
+    .filter((field) => field && field.id !== SYSTEM_EMAIL_FIELD.id && !field.system && !field.hidden)
+    .map((field) => ({ ...field, _key: field._key || nextFieldKey() })),
 ];
 
 const inputCls =
@@ -62,6 +72,7 @@ export default function AdminCertificateTemplates() {
   const [selected, setSelected] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const imageRef = useRef(null);
   const cardRefs = useRef({});
@@ -105,7 +116,18 @@ export default function AdminCertificateTemplates() {
 
   const onImageLoad = (event) => {
     const { naturalWidth, naturalHeight } = event.currentTarget;
-    if (naturalWidth && naturalHeight) setCanvasSize({ width: naturalWidth, height: naturalHeight });
+    if (naturalWidth && naturalHeight) {
+      setCanvasSize({ width: naturalWidth, height: naturalHeight });
+      // Keep existing dynamic fields inside new canvas bounds
+      setFields((cur) =>
+        cur.map((f) => ({
+          ...f,
+          x: clamp(Math.round(f.x), 0, naturalWidth),
+          y: clamp(Math.round(f.y), 0, naturalHeight),
+          maxWidth: f.maxWidth > naturalWidth ? naturalWidth : f.maxWidth,
+        }))
+      );
+    }
     setPreviewWidth(event.currentTarget.clientWidth);
   };
 
@@ -117,20 +139,34 @@ export default function AdminCertificateTemplates() {
     setEditing(null);
     setName("");
     setBackground(null);
-    setFields([SYSTEM_EMAIL_FIELD]);
+    setFields([]);
     setSelected(null);
     setCanvasSize(DEFAULT_CANVAS);
     setError("");
+    setSuccess("");
   }, []);
 
   const startEdit = (template) => {
     setEditing(template);
     setName(template.name);
     setBackground(null);
-    setFields(withSystemEmailField(template.fields).map((f, i) => ({ ...createField(i + 1), ...f })));
+    const canvas = {
+      width: template.canvas_width || DEFAULT_CANVAS.width,
+      height: template.canvas_height || DEFAULT_CANVAS.height,
+    };
+    // Only load visual dynamic fields into the editor
+    const visualFields = (template.fields || [])
+      .filter((f) => f && !f.system && !f.hidden && f.id !== SYSTEM_EMAIL_FIELD.id)
+      .map((f, i) => ({
+        ...createField(i + 1, canvas),
+        ...f,
+        _key: f._key || nextFieldKey(),
+      }));
+    setFields(visualFields);
     setSelected(null);
-    setCanvasSize({ width: template.canvas_width, height: template.canvas_height });
+    setCanvasSize(canvas);
     setError("");
+    setSuccess("");
   };
 
   const selectBackground = (file) => {
@@ -140,6 +176,7 @@ export default function AdminCertificateTemplates() {
       return;
     }
     setError("");
+    setSuccess("");
     setBackground(file);
   };
 
@@ -149,8 +186,11 @@ export default function AdminCertificateTemplates() {
   );
 
   const addField = () => {
-    setFields((cur) => [...cur, createField(cur.length + 1)]);
+    const n = fields.length + 1;
+    const newField = createField(n, canvasSize);
+    setFields((cur) => [...cur, newField]);
     setSelected(fields.length);
+    setError("");
   };
 
   const removeField = (index) => {
@@ -232,26 +272,35 @@ export default function AdminCertificateTemplates() {
   const validate = () => {
     if (!name.trim()) return "Template name is required";
     if (!editing && !background) return "A PNG/JPEG design is required";
-    if (fields[0]?.id !== "email" || !fields[0].system) return "The locked email field is required";
-    if (!fields.some((field) => !field.system)) return "Add at least one dynamic field";
+    if (!fields.length) return "Add at least one dynamic field (e.g. student_name)";
     const ids = fields.map((f) => f.id.trim());
-    if (ids.some((id) => !id)) return "Every field needs a key";
+    if (ids.some((id) => !id)) return "Every dynamic field needs a key (CSV column name)";
+    if (ids.some((id) => id.toLowerCase() === "email")) {
+      return "Field key 'email' is reserved for system account linking. To display the recipient's email on the certificate, use 'student_email' or 'user_email'.";
+    }
     if (new Set(ids).size !== ids.length) return "Field keys must be unique";
     return "";
   };
 
   const save = async () => {
     const problem = validate();
-    if (problem) return setError(problem);
+    if (problem) {
+      setError(problem);
+      setSuccess("");
+      return;
+    }
 
     setSaving(true);
     setError("");
+    setSuccess("");
     try {
-      const payload = fields.map(({ sample, ...rest }) => ({
+      const effectiveFields = withSystemEmailField(fields);
+      const payload = effectiveFields.map(({ sample, _key, ...rest }) => ({
         ...rest,
         id: rest.id.trim(),
-        x: Math.round(rest.x),
-        y: Math.round(rest.y),
+        label: rest.label ? rest.label.trim() : rest.id.trim(),
+        x: Math.round(Number(rest.x) || 0),
+        y: Math.round(Number(rest.y) || 0),
         fontSize: clamp(Number(rest.fontSize) || 48, 1, 300),
         maxWidth: Math.max(0, Number(rest.maxWidth) || 0),
       }));
@@ -271,7 +320,9 @@ export default function AdminCertificateTemplates() {
           ? cur.map((t) => (t._id === editing._id ? response.data.template : t))
           : [response.data.template, ...cur]
       );
+      const savedName = name.trim();
       resetForm();
+      setSuccess(`Template "${savedName}" saved successfully!`);
     } catch (requestError) {
       setError(requestError.response?.data?.error || "Could not save template");
     } finally {
@@ -285,6 +336,7 @@ export default function AdminCertificateTemplates() {
       await api.delete(`/certificate-templates/${id}`);
       setTemplates((cur) => cur.filter((t) => t._id !== id));
       if (editing?._id === id) resetForm();
+      setSuccess("Template deleted successfully");
     } catch (requestError) {
       setError(requestError.response?.data?.error || "Could not delete template");
     }
@@ -292,22 +344,16 @@ export default function AdminCertificateTemplates() {
 
   if (authLoading || user?.role !== "admin") return null;
 
+  const canSave = Boolean(name.trim() && (editing || background) && fields.length > 0 && !saving);
+
   // ---- render -----------------------------------------------------------
   return (
     <div className="flex h-screen overflow-hidden bg-[#0d0d0d] text-white">
       <AdminSidebar />
       <main className="min-w-0 flex-1 overflow-y-auto p-6 md:p-8 max-md:pt-20">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Certificate Templates</h1>
-            <p className="mt-1 text-[#777]">Admin-managed designs and dynamic fields</p>
-          </div>
-          <button
-            onClick={resetForm}
-            className="flex items-center gap-2 rounded-lg bg-[#f59e0b] px-4 py-2 font-semibold text-black"
-          >
-            <Plus size={18} /> New template
-          </button>
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold">Certificate Templates</h1>
+          <p className="mt-1 text-[#777]">Admin-managed designs and dynamic fields</p>
         </div>
 
         {/* template strip */}
@@ -321,7 +367,7 @@ export default function AdminCertificateTemplates() {
             >
               <h2 className="truncate font-semibold">{template.name}</h2>
               <p className="mt-1 text-xs text-[#777]">
-                {template.canvas_width} x {template.canvas_height} · {(template.fields || []).length} fields
+                {template.canvas_width} x {template.canvas_height} · {(template.fields || []).filter((f) => !f.system).length} dynamic fields
               </p>
               <div className="mt-3 flex gap-3">
                 <button onClick={() => startEdit(template)} className="flex items-center gap-1 text-sm text-[#fbbf24]">
@@ -380,13 +426,12 @@ export default function AdminCertificateTemplates() {
                       className="block w-full select-none"
                       draggable={false}
                     />
-                    {fields.filter((field) => !field.system).map((field) => {
-                      const index = fields.indexOf(field);
+                    {fields.map((field, index) => {
                       const boxWidth = field.maxWidth > 0 ? field.maxWidth * scale : undefined;
                       const isSelected = selected === index;
                       return (
                         <div
-                          key={index}
+                          key={field._key || `preview_${index}`}
                           role="button"
                           tabIndex={0}
                           aria-label={`Move ${field.id}`}
@@ -437,7 +482,7 @@ export default function AdminCertificateTemplates() {
                 <div>
                   <h3 className="font-semibold">Dynamic fields</h3>
                   <p className="mt-1 text-xs text-[#777]">
-                    {fields.length} field{fields.length === 1 ? "" : "s"} · Field key must match a CSV column header.
+                    {fields.length} dynamic field{fields.length === 1 ? "" : "s"} · Position text anchors on the certificate design.
                   </p>
                 </div>
                 <button
@@ -448,10 +493,26 @@ export default function AdminCertificateTemplates() {
                 </button>
               </div>
 
+              {/* CSV Requirement & Email Notice */}
+              <div className="mt-3 rounded-lg border border-blue-500/30 bg-blue-500/10 p-3.5 text-xs text-blue-200">
+                <div className="flex items-center gap-1.5 font-semibold text-blue-300">
+                  <Info size={15} className="shrink-0" />
+                  <span>CSV Column & Email Notice</span>
+                </div>
+                <ul className="mt-1.5 list-inside list-disc space-y-1 text-blue-200/80">
+                  <li>
+                    When generating certificates, the <strong>1st column of your CSV must be <code>email</code></strong> to link each certificate to a registered student account (it is processed automatically and not printed).
+                  </li>
+                  <li>
+                    Do <strong>not</strong> name a dynamic field <code>email</code>. If you want to print the recipient&apos;s email address on the certificate itself, name your dynamic field <code>student_email</code> or <code>user_email</code>.
+                  </li>
+                </ul>
+              </div>
+
               <div className="mt-3 space-y-3">
                 {fields.map((field, index) => (
                   <div
-                    key={index}
+                    key={field._key || `field_${index}`}
                     ref={(el) => (cardRefs.current[index] = el)}
                     onClick={() => setSelected(index)}
                     className={`rounded-lg border bg-[#0d0d0d] p-4 ${
@@ -459,21 +520,16 @@ export default function AdminCertificateTemplates() {
                     }`}
                   >
                     <div className="grid grid-cols-2 items-end gap-3">
-                      {field.system ? (
-                        <div className="col-span-2 rounded-md border border-blue-500/30 bg-blue-500/10 p-3 text-sm text-blue-200">
-                          <strong>{field.label}</strong>
-                          <p className="mt-1 text-xs text-blue-200/70">
-                            The CSV must contain email as its first column. This value links each certificate to a member
-                            and is never rendered on the certificate.
-                          </p>
-                        </div>
-                      ) : null}
-                      {!field.system ? (
-                        <>
                       <Labeled label="Field key (CSV column)">
                         <input
                           value={field.id}
-                          onChange={(e) => updateField(index, { id: e.target.value.replace(/[^a-zA-Z0-9_-]/g, "_") })}
+                          onChange={(e) => {
+                            const newId = e.target.value.replace(/[^a-zA-Z0-9_-]/g, "_");
+                            updateField(index, {
+                              id: newId,
+                              label: !field.label || field.label.startsWith("Field ") ? newId : field.label,
+                            });
+                          }}
                           placeholder="student_name"
                           className={inputCls}
                         />
@@ -525,11 +581,9 @@ export default function AdminCertificateTemplates() {
                           <option value="italic">Italic</option>
                         </select>
                       </Labeled>
-                        </>
-                      ) : null}
                     </div>
 
-                    {!field.system ? <div className="mt-3 flex flex-wrap items-center gap-4 border-t border-[#252525] pt-3">
+                    <div className="mt-3 flex flex-wrap items-center gap-4 border-t border-[#252525] pt-3">
                       <Labeled label="Text color" className="flex items-center gap-2">
                         <input
                           type="color"
@@ -556,23 +610,41 @@ export default function AdminCertificateTemplates() {
                       >
                         Remove
                       </button>
-                    </div> : null}
+                    </div>
                   </div>
                 ))}
-                {!fields.length && (
-                  <p className="rounded-lg border border-dashed border-[#252525] p-6 text-center text-sm text-[#666]">
-                    No fields yet. Click “Add field” to place dynamic text on the design.
-                  </p>
+
+                {fields.length === 0 && (
+                  <div className="rounded-lg border border-dashed border-[#252525] p-6 text-center text-sm text-[#777]">
+                    <p>No dynamic text fields yet.</p>
+                    <p className="mt-1 text-xs text-[#555]">
+                      Click “Add field” above to place dynamic text (like student name, event title, date) on the certificate.
+                    </p>
+                  </div>
                 )}
               </div>
 
               {/* sticky save bar */}
               <div className="sticky bottom-0 mt-4 bg-[#111] pb-1 pt-3">
                 {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
+                {success && (
+                  <p className="mb-2 flex items-center gap-1.5 text-sm text-emerald-400">
+                    <CheckCircle2 size={16} /> {success}
+                  </p>
+                )}
                 <button
                   onClick={save}
-                  disabled={saving}
-                  className="flex items-center gap-2 rounded-lg bg-[#f59e0b] px-5 py-2.5 font-semibold text-black disabled:opacity-50"
+                  disabled={!canSave}
+                  title={
+                    !name.trim()
+                      ? "Enter a template name"
+                      : !editing && !background
+                      ? "Upload a design image"
+                      : fields.length === 0
+                      ? "Add at least one dynamic field"
+                      : "Save certificate template"
+                  }
+                  className="flex items-center gap-2 rounded-lg bg-[#f59e0b] px-5 py-2.5 font-semibold text-black transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Save size={17} /> {saving ? "Saving..." : "Save template"}
                 </button>

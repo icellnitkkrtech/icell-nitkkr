@@ -37,6 +37,7 @@ function validateFields(fields, width, height) {
       fontStyle: field.fontStyle === "italic" ? "italic" : "normal",
       color: /^#[0-9a-f]{6}$/i.test(field.color || "") ? field.color : "#000000",
       alignment: allowedAlignments.has(field.alignment) ? field.alignment : "left",
+      autoFit: Boolean(field.autoFit),
     };
   });
 }
@@ -78,10 +79,22 @@ export async function updateCertificateTemplate(req, res) {
     const existing = await templateModel.getTemplateById(req.params.id);
     if (!existing) return res.status(404).json({ error: "Template not found" });
     const updates = {};
+    let width = existing.canvas_width;
+    let height = existing.canvas_height;
+    if (req.file) {
+      const upload = await uploadBackground(req.file);
+      width = upload.width;
+      height = upload.height;
+      Object.assign(updates, {
+        background_url: upload.secure_url,
+        cloudinary_public_id: upload.public_id,
+        canvas_width: upload.width,
+        canvas_height: upload.height,
+      });
+    }
     if (req.body.name !== undefined) updates.name = String(req.body.name).trim().slice(0, 150);
-    if (req.body.fields !== undefined) updates.fields = validateFields(JSON.parse(req.body.fields), existing.canvas_width, existing.canvas_height);
+    if (req.body.fields !== undefined) updates.fields = validateFields(JSON.parse(req.body.fields), width, height);
     if (req.body.active !== undefined) updates.active = req.body.active === "true" || req.body.active === true;
-    if (req.file) { const upload = await uploadBackground(req.file); Object.assign(updates, { background_url: upload.secure_url, cloudinary_public_id: upload.public_id, canvas_width: upload.width, canvas_height: upload.height }); }
     const template = await templateModel.updateTemplate(req.params.id, updates);
     res.json({ template });
   } catch (error) { res.status(400).json({ error: error.message || "Failed to update template" }); }

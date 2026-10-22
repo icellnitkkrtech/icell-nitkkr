@@ -1,5 +1,4 @@
 import * as authModel from "../models/authModel.js";
-import * as certificateModel from "../models/certificateModel.js";
 import { fetchStudentEventAttendance } from "../models/eventAttendanceModel.js";
 import crypto from "crypto";
 import {
@@ -406,49 +405,9 @@ export async function promoteStudent(req, res) {
     // Get the student after promotion
     const student = await authModel.getUserById(studentId);
 
-    // Auto-generate corresponding certificate
-    try {
-      if (newRole === "member") {
-        // Check if member certificate already exists
-        const existingCert = await certificateModel.hasCertificateType(
-          studentId,
-          "member"
-        );
-
-        if (!existingCert) {
-          await certificateModel.createCertificate(studentId, "member", {
-            title: "iCell Member Certificate",
-            description: "Official membership certificate",
-          });
-        }
-
-        // If post position provided, also create post holder certificate
-        if (postPosition) {
-          const existingPostCert = await certificateModel.hasCertificateType(
-            studentId,
-            "post_holder"
-          );
-
-          if (!existingPostCert) {
-            await certificateModel.createCertificate(studentId, "post_holder", {
-              title: `${postPosition} - Post Holder Certificate`,
-              description: `Appointed as ${postPosition}`,
-              post_position: postPosition,
-            });
-          }
-        }
-      }
-    } catch (certError) {
-      console.warn(
-        "Warning: Could not create certificate for promoted user:",
-        certError
-      );
-      // Don't fail the promotion if certificate creation fails
-    }
-
     res.json({
       message: "Student promoted successfully",
-      certificateGenerated: newRole === "member",
+      student,
     });
   } catch (error) {
     console.error("Promote student error:", error);

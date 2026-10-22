@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Download, FileSpreadsheet, Loader2, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { AlertCircle, ArrowLeft, Download, FileSpreadsheet, Info, Loader2, X } from "lucide-react";
 import api from "../../services/api";
 
 /* ------------------------------------------------------------------ */
@@ -117,9 +118,12 @@ function filenameFromHeaders(headers, fallback) {
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 export default function DynamicCertificateGenerator() {
+  const navigate = useNavigate();
   const [templates, setTemplates] = useState([]);
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [templateId, setTemplateId] = useState("");
+  const [title, setTitle] = useState("");
+  const [issuedDate, setIssuedDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [file, setFile] = useState(null);
   const [headers, setHeaders] = useState([]);
   const [rows, setRows] = useState([]);
@@ -159,59 +163,75 @@ export default function DynamicCertificateGenerator() {
   /* ---- derived ------------------------------------------------------ */
   const unmapped = useMemo(() => fields.filter((f) => !mapping[f.id]), [fields, mapping]);
   const rowsWithEmptyCells = useMemo(() => {
-    const cols = fields.map((f) => mapping[f.id]).filter(Boolean);
-    return rows.filter((r) => cols.some((c) => !r[c])).length;
-  }, [rows, fields, mapping]);
-  const canGenerate = !!file && rows.length > 0 && unmapped.length === 0 && !generating;
+    if (!rows.length || unmapped.length > 0) return 0;
+    return rows.filter((r) => fields.some((f) => !r[mapping[f.id]])).length;
+  }, [rows, fields, mapping, unmapped.length]);
+
+  const canGenerate = Boolean(
+    template &&
+    file &&
+    rows.length > 0 &&
+    unmapped.length === 0 &&
+    title.trim() &&
+    !generating
+  );
 
   /* ---- actions ------------------------------------------------------ */
+  const selectTemplate = (id) => {
+    setTemplateId(id);
+    const chosen = templates.find((t) => t._id === id);
+    if (chosen) {
+      setTitle(chosen.name || "");
+    }
+    resetCsv();
+  };
+
   const resetCsv = () => {
     setFile(null);
     setHeaders([]);
     setRows([]);
     setMapping({});
-    setPreviewRow(0);
     setPreviewUrl("");
     setPreviewError("");
+    setPreviewRow(0);
+    setError("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const selectTemplate = (id) => {
-    generateAbortRef.current?.abort();
-    setTemplateId(id);
+  const processFile = (selected) => {
+    if (!selected) return;
     setError("");
-    resetCsv();
-  };
-
-  const processFile = async (selected) => {
-    if (!selected || !template) return;
-    setError("");
-
-    if (!/\.csv$/i.test(selected.name)) return setError("Please select a .csv file");
-    if (selected.size === 0) return setError("This file is empty");
+    if (!template) return setError("Select a template before uploading a CSV");
+    if (!/\.csv$/i.test(selected.name)) return setError("Only .csv files are supported");
+    if (selected.size === 0) return setError("The selected CSV file is empty");
     if (selected.size > MAX_CSV_BYTES) {
-      return setError(`File is ${formatBytes(selected.size)}. Maximum allowed size is ${formatBytes(MAX_CSV_BYTES)}`);
+      return setError(`File is too large (${formatBytes(selected.size)}). Maximum is ${formatBytes(MAX_CSV_BYTES)}`);
     }
 
-    try {
-      const parsed = parseCsv(await selected.text());
-      if (!parsed.headers.length || !parsed.rows.length) {
-        return setError("CSV must contain a header row and at least one data row");
+    const reader = new FileReader();
+    reader.onerror = () => setError("Could not read this file");
+    reader.onload = () => {
+      try {
+        const parsed = parseCsv(String(reader.result || ""));
+        if (!parsed.rows.length) {
+          return setError("The CSV file has no data rows");
+        }
+        if (parsed.headers[0] !== SYSTEM_EMAIL_FIELD_ID) {
+          return setError("The first CSV column must be email");
+        }
+        if (parsed.rows.length > MAX_ROWS) {
+          return setError(`Too many rows (${parsed.rows.length}). Maximum is ${MAX_ROWS} per file`);
+        }
+        setFile(selected);
+        setHeaders(parsed.headers);
+        setRows(parsed.rows);
+        setMapping(autoMapFields(template.fields || [], parsed.headers));
+        setPreviewRow(0);
+      } catch (err) {
+        setError("Could not read this file: " + err.message);
       }
-      if (parsed.headers[0] !== SYSTEM_EMAIL_FIELD_ID) {
-        return setError("The first CSV column must be email");
-      }
-      if (parsed.rows.length > MAX_ROWS) {
-        return setError(`Too many rows (${parsed.rows.length}). Maximum is ${MAX_ROWS} per file`);
-      }
-      setFile(selected);
-      setHeaders(parsed.headers);
-      setRows(parsed.rows);
-      setMapping(autoMapFields(template.fields || [], parsed.headers));
-      setPreviewRow(0);
-    } catch (err) {
-      setError("Could not read this file: " + err.message);
-    }
+    };
+    reader.readAsText(selected);
   };
 
   /* ---- auto preview (debounced, stale responses ignored) ------------ */
@@ -257,16 +277,16 @@ export default function DynamicCertificateGenerator() {
     generateAbortRef.current = controller;
 
     try {
-      // Upload exactly what was mapped: normalized headers, blank rows removed.
       const cleanFile = new File([toCsv(headers, rows)], file.name.replace(/\.csv$/i, "") + "-clean.csv", {
         type: "text/csv",
       });
       const form = new FormData();
       form.append("templateId", templateId);
+      form.append("title", title.trim());
+      form.append("issuedDate", issuedDate);
       form.append("mapping", JSON.stringify(mapping));
       form.append("file", cleanFile);
 
-      // No manual Content-Type: the browser must set the multipart boundary.
       const res = await api.post("/dynamic-certificates/generate", form, {
         headers: { "Content-Type": undefined },
         responseType: "blob",
@@ -277,7 +297,7 @@ export default function DynamicCertificateGenerator() {
       const url = URL.createObjectURL(res.data);
       const link = document.createElement("a");
       link.href = url;
-      link.download = filenameFromHeaders(res.headers, "certificates.zip");
+      link.download = filenameFromHeaders(res.headers, `${title.trim().replace(/[^a-z0-9_-]+/gi, "_") || "certificates"}.zip`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -300,8 +320,15 @@ export default function DynamicCertificateGenerator() {
   return (
     <main className="min-h-screen bg-[#0d0d0d] p-6 text-white md:p-10">
       <div className="mx-auto max-w-7xl">
+        <button
+          onClick={() => navigate("/admin/certificates")}
+          className="mb-4 flex items-center gap-2 text-sm text-[#999] transition-colors hover:text-white"
+        >
+          <ArrowLeft size={16} /> Back to Certificates
+        </button>
+
         <h1 className="text-3xl font-bold">Certificate Generator</h1>
-        <p className="mb-8 mt-1 text-[#777]">Select a template, map your CSV columns, and generate certificates.</p>
+        <p className="mb-8 mt-1 text-[#777]">Select a template, customize details, map your CSV columns, and generate certificates.</p>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
           {/* LEFT: controls */}
@@ -312,7 +339,7 @@ export default function DynamicCertificateGenerator() {
                 value={templateId}
                 onChange={(e) => selectTemplate(e.target.value)}
                 disabled={loadingTemplates || generating}
-                className="mt-2 w-full rounded-lg border border-[#2a2a2a] bg-[#0d0d0d] p-3"
+                className="mt-2 w-full rounded-lg border border-[#2a2a2a] bg-[#0d0d0d] p-3 text-white focus:border-[#fbbf24] focus:outline-none"
               >
                 <option value="">{loadingTemplates ? "Loading templates..." : "Select a template"}</option>
                 {templates.map((t) => (
@@ -323,6 +350,48 @@ export default function DynamicCertificateGenerator() {
 
             {template && (
               <>
+                {/* NEW: Certificate Details Section */}
+                <div className="space-y-3 rounded-lg border border-[#252525] bg-[#0d0d0d] p-4">
+                  <h2 className="text-sm font-semibold text-[#fbbf24]">Certificate Details</h2>
+                  <label className="block">
+                    <span className="text-xs text-[#aaa]">
+                      Certificate Title / Event Name <span className="text-red-400">*</span>
+                    </span>
+                    <input
+                      type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="e.g. E-Summit 2026: Web Development Hackathon"
+                      className="mt-1 w-full rounded-lg border border-[#2a2a2a] bg-[#111] px-3 py-2 text-sm text-white placeholder-[#555] focus:border-[#fbbf24] focus:outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-[#aaa]">Issuance Date</span>
+                    <input
+                      type="date"
+                      value={issuedDate}
+                      onChange={(e) => setIssuedDate(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-[#2a2a2a] bg-[#111] px-3 py-2 text-sm text-white focus:border-[#fbbf24] focus:outline-none"
+                    />
+                  </label>
+                </div>
+
+                {/* CSV Requirement Note */}
+                <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3.5 text-xs text-blue-200">
+                  <div className="flex items-center gap-1.5 font-semibold text-blue-300">
+                    <Info size={15} className="shrink-0" />
+                    <span>CSV File Requirements</span>
+                  </div>
+                  <ul className="mt-1.5 list-inside list-disc space-y-1 text-blue-200/80">
+                    <li>
+                      The <strong>1st column of the CSV must be <code>email</code></strong> to link certificates to student accounts (this column is not printed).
+                    </li>
+                    <li>
+                      If your certificate design prints an email, map its field (e.g. <code>student_email</code> or <code>user_email</code>) to the appropriate CSV column below.
+                    </li>
+                  </ul>
+                </div>
+
                 <label
                   onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                   onDragLeave={() => setDragging(false)}
@@ -370,7 +439,7 @@ export default function DynamicCertificateGenerator() {
                         <select
                           value={mapping[field.id] || ""}
                           onChange={(e) => setMapping((cur) => ({ ...cur, [field.id]: e.target.value }))}
-                          className={`mt-1 w-full rounded-lg border bg-[#0d0d0d] p-2 ${
+                          className={`mt-1 w-full rounded-lg border bg-[#0d0d0d] p-2 text-white ${
                             mapping[field.id] ? "border-[#2a2a2a]" : "border-red-500/50"
                           }`}
                         >
@@ -396,6 +465,28 @@ export default function DynamicCertificateGenerator() {
                         {rowsWithEmptyCells} row{rowsWithEmptyCells === 1 ? " has" : "s have"} an empty value in a mapped
                         column. Those certificates will have blank text.
                       </p>
+                    )}
+
+                    {/* NEW: Batch Summary Card */}
+                    {unmapped.length === 0 && (
+                      <div className="space-y-1.5 rounded-lg border border-[#252525] bg-[#0d0d0d] p-3 text-xs">
+                        <p className="font-semibold text-[#fbbf24]">Batch Generation Summary</p>
+                        <div className="flex justify-between text-[#ccc]">
+                          <span className="text-[#777]">Certificate Title:</span>
+                          <span className="max-w-[200px] truncate font-medium text-white">{title.trim() || template.name}</span>
+                        </div>
+                        <div className="flex justify-between text-[#ccc]">
+                          <span className="text-[#777]">Issuance Date:</span>
+                          <span className="font-medium text-white">{issuedDate}</span>
+                        </div>
+                        <div className="flex justify-between text-[#ccc]">
+                          <span className="text-[#777]">Recipients in CSV:</span>
+                          <span className="font-medium text-[#10b981]">{rows.length} rows</span>
+                        </div>
+                        <p className="pt-1 text-[11px] text-[#777]">
+                          Each recipient email will be linked to their registered student account.
+                        </p>
+                      </div>
                     )}
 
                     <button
@@ -432,7 +523,7 @@ export default function DynamicCertificateGenerator() {
                   value={previewRow}
                   onChange={(e) => setPreviewRow(Number(e.target.value))}
                   aria-label="Row to preview"
-                  className="max-w-[60%] truncate rounded-md border border-[#2a2a2a] bg-[#0d0d0d] p-2 text-sm"
+                  className="max-w-[60%] truncate rounded-md border border-[#2a2a2a] bg-[#0d0d0d] p-2 text-sm text-white"
                 >
                   {rows.slice(0, 200).map((row, i) => (
                     <option key={i} value={i}>{previewRowLabel(row, i)}</option>

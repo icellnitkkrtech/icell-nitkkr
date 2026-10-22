@@ -186,6 +186,8 @@ export async function generateDynamicCertificates(req, res) {
     }
 
     /* ---------- 2. stream the ZIP ---------- */
+    const certificateTitle = String(req.body.title || "").trim() || template.name;
+    const certificateIssuedDate = req.body.issuedDate ? new Date(req.body.issuedDate) : new Date();
     const batchId = `dynamic_${Date.now()}_${req.user.userId}`;
     res.attachment("certificates.zip");
     const archive = new ZipArchive({ zlib: { level: 1 } }); // PNGs are already compressed
@@ -209,14 +211,15 @@ export async function generateDynamicCertificates(req, res) {
       if (aborted) return;
       try {
         const buffer = await renderCertificate(template, job.values);
-        await certificateModel.createDynamicCertificate({
+        await certificateModel.createCertificate({
           userId: job.user._id,
-          title: template.name,
           templateId: template._id,
-          data: job.values,
-          email: job.email,
+          title: certificateTitle,
+          recipientEmail: job.email,
+          dynamicData: job.values,
           batchId,
           issuedBy: req.user.userId,
+          issuedDate: certificateIssuedDate,
         });
         const base = (job.values.name || job.values[fields[0]?.id] || `certificate-${job.index + 1}`)
           .replace(/[^a-z0-9_-]+/gi, "_")
