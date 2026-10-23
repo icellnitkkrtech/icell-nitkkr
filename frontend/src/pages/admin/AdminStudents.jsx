@@ -11,6 +11,8 @@ import {
   ChevronDown,
   X,
   Check,
+  Users,
+  Loader2,
 } from "lucide-react";
 
 const BRANCHES = ["CSE", "ECE", "ME", "CIVIL", "EEE", "BT"];
@@ -338,13 +340,6 @@ export default function AdminStudents() {
     };
   };
 
-  if (loading) {
-    return (
-      <div className="p-8 min-h-screen bg-[#0d0d0d]">
-        <div className="text-white">Loading students...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-screen bg-[#0d0d0d] text-white">
@@ -422,152 +417,207 @@ export default function AdminStudents() {
             </select>
           </div>
 
-          {/* Students Table */}
-          <div
-            className="rounded-lg sm:rounded-xl border overflow-hidden"
-            style={{ background: "#111111", borderColor: "#1f1f1f" }}
-          >
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ borderBottom: "1px solid #1f1f1f" }}>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
-                      Name
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
-                      Email
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
-                      Branch
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
-                      Year
-                    </th>
-                    {/* <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
-                      Roll #
-                    </th> */}
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
-                      Attend.
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
-                      Role
-                    </th>
-                    <th className="px-3 sm:px-6 py-3 sm:py-4 text-right text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredStudents.map((student) => {
-                    const attendanceData = attendance[student._id];
-                    const percentage = attendanceData?.percentage || 0;
-                    const total = attendanceData?.total || 0;
-                    const colorStyle = getAttendanceColorAndStyle(percentage);
+          {/* Main Content Area: Dedicated Loader UI or Students Table */}
+          {loading ? (
+            <div
+              className="rounded-lg sm:rounded-xl border p-6 sm:p-10"
+              style={{ background: "#111111", borderColor: "#1f1f1f" }}
+            >
+              <div className="flex flex-col items-center justify-center text-center py-6 mb-6">
+                <div className="relative mb-4">
+                  <div className="w-14 h-14 rounded-full border-2 border-purple-500/20 border-t-purple-500 animate-spin" />
+                  <Users
+                    size={22}
+                    className="absolute inset-0 m-auto text-purple-400 animate-pulse"
+                  />
+                </div>
+                <h3
+                  className="text-lg sm:text-xl font-bold text-white mb-1.5"
+                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                >
+                  Loading Student Records
+                </h3>
+                <p className="text-xs sm:text-sm text-[#777] max-w-md">
+                  Fetching students directory and calculating bulk attendance metrics...
+                </p>
+              </div>
 
-                    return (
-                      <tr
-                        key={student._id}
-                        style={{ borderBottom: "1px solid #1f1f1f" }}
-                        className="hover:bg-[#0d0d0d] transition text-sm"
-                      >
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-white font-medium whitespace-nowrap">
-                          {student.name}
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-[#555] whitespace-nowrap">
-                          {student.email}
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-[#555] whitespace-nowrap">
-                          {student.branch || "-"}
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-[#555] whitespace-nowrap">
-                          {student.year || "-"}
-                        </td>
-                        {/* <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-[#555] whitespace-nowrap">
-                          {student.roll_number || "-"}
-                        </td> */}
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm">
-                          {attendanceLoading ? (
-                            <span className="text-[#555]">Loading...</span>
-                          ) : total === 0 ? (
-                            <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-medium bg-[#1f1f1f] text-[#666]">
-                              No data
-                            </span>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="px-2 sm:px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap"
-                                style={{
-                                  background: colorStyle.badge,
-                                  color: colorStyle.badgeText,
-                                }}
-                              >
-                                {percentage}%
-                              </span>
-                              <span className="text-[#555] text-xs hidden sm:inline">
-                                {attendanceData.present}/{total}
-                              </span>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm whitespace-nowrap">
-                          {student.role === "post_holder" ? (
-                            <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
-                              {student.post_position || "Post Holder"}
-                            </span>
-                          ) : student.role === "member" ? (
-                            <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-medium bg-pink-500/20 text-pink-400">
-                              Member
-                            </span>
-                          ) : (
-                            <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400">
-                              Student
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1 sm:gap-2">
-                            <button
-                              onClick={() => {
-                                setSelectedStudent(student);
-                                setShowPromoteModal(true);
-                              }}
-                              className="px-2 sm:px-3 py-1 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition text-xs font-medium"
-                              title="Change Role"
-                            >
-                              <span className="hidden sm:inline">Change</span>
-                              <span className="inline sm:hidden">CH</span>
-                            </button>
-                            {student.role !== "student" && (
-                              <button
-                                onClick={() => handleDemoteStudent(student._id)}
-                                disabled={actionLoadingId === student._id}
-                                className="px-2 sm:px-3 py-1 rounded-lg bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Demote"
-                              >
-                                <span className="hidden sm:inline">
-                                  {actionLoadingId === student._id
-                                    ? "Demoting..."
-                                    : "Demote"}
-                                </span>
-                                <span className="inline sm:hidden">
-                                  {actionLoadingId === student._id ? "..." : "DM"}
-                                </span>
-                              </button>
-                            )}
-                          </div>
-                        </td>
+              {/* Skeleton Table Rows Preview */}
+              <div className="space-y-2.5">
+                {[1, 2, 3, 4, 5, 6, 7].map((idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-3.5 sm:p-4 rounded-lg bg-[#0d0d0d] border border-[#1f1f1f] animate-pulse"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-[#1a1a1a]" />
+                      <div className="space-y-1.5 text-left">
+                        <div className="w-28 sm:w-44 h-3.5 bg-[#262626] rounded" />
+                        <div className="w-36 sm:w-56 h-2.5 bg-[#1a1a1a] rounded" />
+                      </div>
+                    </div>
+                    <div className="hidden md:flex items-center gap-8">
+                      <div className="w-14 h-3 bg-[#1a1a1a] rounded" />
+                      <div className="w-10 h-3 bg-[#1a1a1a] rounded" />
+                      <div className="w-16 h-5 bg-[#1a1a1a] rounded-full" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 sm:w-20 h-7 bg-[#1a1a1a] rounded-lg" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Students Table */}
+              <div
+                className="rounded-lg sm:rounded-xl border overflow-hidden"
+                style={{ background: "#111111", borderColor: "#1f1f1f" }}
+              >
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #1f1f1f" }}>
+                        <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
+                          Name
+                        </th>
+                        <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
+                          Email
+                        </th>
+                        <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
+                          Branch
+                        </th>
+                        <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
+                          Year
+                        </th>
+                        {/* <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
+                          Roll #
+                        </th> */}
+                        <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
+                          Attend.
+                        </th>
+                        <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
+                          Role
+                        </th>
+                        <th className="px-3 sm:px-6 py-3 sm:py-4 text-right text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
+                          Actions
+                        </th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                    </thead>
+                    <tbody>
+                      {filteredStudents.map((student) => {
+                        const attendanceData = attendance[student._id];
+                        const percentage = attendanceData?.percentage || 0;
+                        const total = attendanceData?.total || 0;
+                        const colorStyle = getAttendanceColorAndStyle(percentage);
 
-          {filteredStudents.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-[#555]">No students found</p>
-            </div>
+                        return (
+                          <tr
+                            key={student._id}
+                            style={{ borderBottom: "1px solid #1f1f1f" }}
+                            className="hover:bg-[#0d0d0d] transition text-sm"
+                          >
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-white font-medium whitespace-nowrap">
+                              {student.name}
+                            </td>
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-[#555] whitespace-nowrap">
+                              {student.email}
+                            </td>
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-[#555] whitespace-nowrap">
+                              {student.branch || "-"}
+                            </td>
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-[#555] whitespace-nowrap">
+                              {student.year || "-"}
+                            </td>
+                            {/* <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-[#555] whitespace-nowrap">
+                              {student.roll_number || "-"}
+                            </td> */}
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm">
+                              {attendanceLoading ? (
+                                <span className="text-[#555]">Loading...</span>
+                              ) : total === 0 ? (
+                                <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-medium bg-[#1f1f1f] text-[#666]">
+                                  No data
+                                </span>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="px-2 sm:px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap"
+                                    style={{
+                                      background: colorStyle.badge,
+                                      color: colorStyle.badgeText,
+                                    }}
+                                  >
+                                    {percentage}%
+                                  </span>
+                                  <span className="text-[#555] text-xs hidden sm:inline">
+                                    {attendanceData.present}/{total}
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm whitespace-nowrap">
+                              {student.role === "post_holder" ? (
+                                <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
+                                  {student.post_position || "Post Holder"}
+                                </span>
+                              ) : student.role === "member" ? (
+                                <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-medium bg-pink-500/20 text-pink-400">
+                                  Member
+                                </span>
+                              ) : (
+                                <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400">
+                                  Student
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 sm:px-6 py-3 sm:py-4 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1 sm:gap-2">
+                                <button
+                                  onClick={() => {
+                                    setSelectedStudent(student);
+                                    setShowPromoteModal(true);
+                                  }}
+                                  className="px-2 sm:px-3 py-1 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition text-xs font-medium"
+                                  title="Change Role"
+                                >
+                                  <span className="hidden sm:inline">Change</span>
+                                  <span className="inline sm:hidden">CH</span>
+                                </button>
+                                {student.role !== "student" && (
+                                  <button
+                                    onClick={() => handleDemoteStudent(student._id)}
+                                    disabled={actionLoadingId === student._id}
+                                    className="px-2 sm:px-3 py-1 rounded-lg bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 transition text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Demote"
+                                  >
+                                    <span className="hidden sm:inline">
+                                      {actionLoadingId === student._id
+                                        ? "Demoting..."
+                                        : "Demote"}
+                                    </span>
+                                    <span className="inline sm:hidden">
+                                      {actionLoadingId === student._id ? "..." : "DM"}
+                                    </span>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {filteredStudents.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-[#555]">No students found</p>
+                </div>
+              )}
+            </>
           )}
 
           {/* Add Student Modal */}
