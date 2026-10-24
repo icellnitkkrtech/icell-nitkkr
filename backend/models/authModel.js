@@ -96,18 +96,19 @@ export async function updateUserProfile(userId, updates) {
   return result.modifiedCount > 0;
 }
 
-// Get all verified students (with email verification)
+// Get all verified students (with email verification) - sorted alphabetically (A-Z)
 export async function getAllStudents() {
   const db = getDB();
   const profiles = db.collection("profiles");
 
   return await profiles
     .find({ role: { $in: ["student", "member"] }, email_verified: true })
-    .sort({ created_at: -1 })
+    .collation({ locale: "en", strength: 2 })
+    .sort({ name: 1 })
     .toArray();
 }
 
-// Get all students (verified or not) - for admin to see all students
+// Get all students (verified or not) - for admin to see all students - sorted alphabetically (A-Z)
 export async function getAllStudentsAdmin() {
   const db = getDB();
   const profiles = db.collection("profiles");
@@ -118,11 +119,12 @@ export async function getAllStudentsAdmin() {
       role: { $in: ["student", "member", "post_holder"] },
       email_verified: true,
     })
-    .sort({ created_at: -1 })
+    .collation({ locale: "en", strength: 2 })
+    .sort({ name: 1 })
     .toArray();
 }
 
-// Get verified students by filter
+// Get verified students by filter - sorted alphabetically (A-Z)
 export async function getStudentsByFilter(branch, year) {
   const db = getDB();
   const profiles = db.collection("profiles");
@@ -131,7 +133,11 @@ export async function getStudentsByFilter(branch, year) {
   if (branch) filter.branch = branch;
   if (year) filter.year = year;
 
-  return await profiles.find(filter).sort({ created_at: -1 }).toArray();
+  return await profiles
+    .find(filter)
+    .collation({ locale: "en", strength: 2 })
+    .sort({ name: 1 })
+    .toArray();
 }
 
 // Get unverified students (for cleanup)

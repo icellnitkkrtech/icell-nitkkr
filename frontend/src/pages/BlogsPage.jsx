@@ -1,163 +1,64 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import BlogCard from "../components/blog/BlogCard";
 import BlogFilter from "../components/blog/BlogFilter";
 import Footer from "../components/layout/Footer";
 import api from "../services/api";
 
-// ── Slider ────────────────────────────────────────────────────────────────────
-function BlogSlider({ blogs, onCardClick }) {
-  const [startIdx, setStartIdx] = useState(0);
-  const [windowWidth, setWindowWidth] = useState(
-    typeof window !== "undefined" ? window.innerWidth : 1024
-  );
-
-  // Determine visible items based on screen width
-  const getVisibleCount = () => {
-    if (windowWidth < 640) return 1; // mobile
-    if (windowWidth < 1024) return 2; // tablet
-    return 3; // desktop
-  };
-
-  const visible = getVisibleCount();
-  const canPrev = startIdx > 0;
-  const canNext = startIdx + visible < blogs.length;
-
-  // Handle window resize
-  useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  return (
-    <div style={{ position: "relative" }}>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${visible}, 1fr)`,
-          gap: "20px",
-          overflow: "hidden",
-        }}
-      >
-        {blogs.slice(startIdx, startIdx + visible).map((blog) => (
-          <BlogCard key={blog.id} blog={blog} onClick={onCardClick} />
-        ))}
-        {Array.from({
-          length: Math.max(
-            0,
-            visible - blogs.slice(startIdx, startIdx + visible).length
-          ),
-        }).map((_, i) => (
-          <div key={`empty-${i}`} />
-        ))}
-      </div>
-      {blogs.length > visible && (
-        <div
-          style={{
-            display: "flex",
-            gap: "8px",
-            marginTop: "20px",
-            flexWrap: "wrap",
-          }}
-        >
-          {[
-            {
-              label: "← Prev",
-              action: () => setStartIdx(Math.max(0, startIdx - 1)),
-              enabled: canPrev,
-            },
-            {
-              label: "Next →",
-              action: () =>
-                setStartIdx(Math.min(blogs.length - visible, startIdx + 1)),
-              enabled: canNext,
-            },
-          ].map(({ label, action, enabled }) => (
-            <button
-              key={label}
-              onClick={action}
-              disabled={!enabled}
-              style={{
-                padding: "clamp(6px 16px, 2vw, 9px 22px)",
-                borderRadius: "999px",
-                border: enabled
-                  ? "1.5px solid rgba(255,255,255,0.22)"
-                  : "1.5px solid rgba(255,255,255,0.07)",
-                background: enabled
-                  ? "rgba(255,255,255,0.07)"
-                  : "rgba(255,255,255,0.02)",
-                color: enabled
-                  ? "rgba(255,255,255,0.75)"
-                  : "rgba(255,255,255,0.18)",
-                cursor: enabled ? "pointer" : "not-allowed",
-                fontSize: "clamp(11px, 2vw, 13px)",
-                fontFamily: "'DM Sans', sans-serif",
-                fontWeight: 500,
-                transition: "all 0.22s ease",
-                flex: "1 1 auto",
-                minWidth: "100px",
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SectionTitle({ title }) {
+function SectionTitle({ title, count }) {
   return (
     <div
       style={{
         display: "flex",
         alignItems: "center",
-        gap: "clamp(8px, 3vw, 16px)",
-        marginBottom: "clamp(12px, 3vw, 24px)",
-        flexWrap: "wrap",
+        justifyContent: "space-between",
+        gap: "16px",
+        marginBottom: "24px",
       }}
     >
-      <h2
-        style={{
-          color: "#fff",
-          fontFamily: "'DM Serif Display', Georgia, serif",
-          fontSize: "clamp(18px, 5vw, 22px)",
-          fontWeight: 400,
-          margin: 0,
-          letterSpacing: "-0.02em",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {title}
-      </h2>
+      <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
+        <h2
+          style={{
+            color: "#fff",
+            fontFamily: "'DM Serif Display', Georgia, serif",
+            fontSize: "clamp(20px, 4vw, 26px)",
+            fontWeight: 400,
+            margin: 0,
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {title}
+        </h2>
+        {typeof count === "number" && (
+          <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>
+            ({count})
+          </span>
+        )}
+      </div>
       <div
         style={{
           flex: 1,
           height: "1px",
-          minWidth: "50px",
-          background:
-            "linear-gradient(90deg, rgba(255,255,255,0.15), transparent)",
+          background: "linear-gradient(90deg, rgba(255,255,255,0.1), transparent)",
         }}
       />
     </div>
   );
 }
 
-const SECTION_CATEGORIES = ["Finance", "Technology", "Startup", "Design"];
-
 export default function BlogsPage() {
   const navigate = useNavigate();
   const [blogs, setBlogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(9);
 
   useEffect(() => {
     const fetchBlogs = async () => {
       try {
         const response = await api.get("/blogs");
-        setBlogs(response.data);
+        setBlogs(Array.isArray(response.data) ? response.data : []);
       } catch (err) {
         console.error("Failed to load blogs:", err);
       } finally {
@@ -167,14 +68,41 @@ export default function BlogsPage() {
     fetchBlogs();
   }, []);
 
-  const filteredBlogs =
-    activeCategory === "All"
-      ? blogs
-      : blogs.filter((b) => b.category === activeCategory);
+  // Filtered blogs based on Category + Search Query
+  const filteredBlogs = useMemo(() => {
+    return blogs.filter((blog) => {
+      // Category filter
+      const matchCategory =
+        activeCategory === "All" || blog.category === activeCategory;
 
-  const handleCardClick = (blog) => navigate(`/blog/${blog._id}`);
-  const recentBlogs = [...blogs].slice(0, 6);
-  const popularBlogs = [...blogs].slice(2, 8);
+      // Search filter (title, description, author, category, or tags)
+      if (!searchQuery.trim()) return matchCategory;
+
+      const q = searchQuery.toLowerCase().replace(/^#/, "").trim();
+      const matchTitle = (blog.title || "").toLowerCase().includes(q);
+      const matchDesc = (blog.description || "").toLowerCase().includes(q);
+      const matchAuthor = (blog.author || "").toLowerCase().includes(q);
+      const matchCat = (blog.category || "").toLowerCase().includes(q);
+      const matchTags = Array.isArray(blog.tags)
+        ? blog.tags.some((t) => t.toLowerCase().includes(q))
+        : false;
+
+      return (
+        matchCategory &&
+        (matchTitle || matchDesc || matchAuthor || matchCat || matchTags)
+      );
+    });
+  }, [blogs, activeCategory, searchQuery]);
+
+  // Reset pagination when category or search changes
+  useEffect(() => {
+    setVisibleCount(9);
+  }, [activeCategory, searchQuery]);
+
+  const handleCardClick = (blog) => navigate(`/blog/${blog._id || blog.id}`);
+
+  const visibleBlogs = filteredBlogs.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredBlogs.length;
 
   return (
     <div
@@ -190,150 +118,219 @@ export default function BlogsPage() {
         rel="stylesheet"
       />
 
-      {/* Hero */}
+      {/* Hero Banner */}
       <section style={{ paddingTop: "clamp(60px, 8vw, 96px)" }}>
         <div
           style={{
             margin: "0 auto",
-            maxWidth: "1200px",
-            padding: "0 clamp(12px, 4vw, 24px)",
+            maxWidth: "1240px",
+            padding: "0 clamp(16px, 4vw, 32px)",
           }}
         >
           <div
             style={{
-              borderRadius: "clamp(12px, 4vw, 24px)",
+              borderRadius: "clamp(16px, 3vw, 24px)",
               overflow: "hidden",
               background:
-                "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
+                "linear-gradient(135deg, #111827 0%, #1e1b4b 50%, #312e81 100%)",
               border: "1px solid rgba(255,255,255,0.08)",
               display: "flex",
-              flexDirection: window.innerWidth < 768 ? "column" : "row",
+              flexDirection: "row",
+              flexWrap: "wrap",
               alignItems: "center",
               justifyContent: "space-between",
-              minHeight: window.innerWidth < 768 ? "auto" : "220px",
+              padding: "clamp(28px, 5vw, 56px) clamp(20px, 4vw, 48px)",
               position: "relative",
-              gap: window.innerWidth < 768 ? "20px" : "0",
+              gap: "24px",
             }}
           >
             <div
               style={{
                 position: "absolute",
-                right: window.innerWidth < 768 ? "unset" : "10%",
-                left: window.innerWidth < 768 ? "-20%" : "unset",
+                right: "5%",
                 top: "50%",
                 transform: "translateY(-50%)",
-                width: window.innerWidth < 768 ? "120px" : "180px",
-                height: window.innerWidth < 768 ? "120px" : "180px",
+                width: "240px",
+                height: "240px",
                 borderRadius: "50%",
                 background:
-                  "radial-gradient(circle, rgba(102,126,234,0.2) 0%, transparent 70%)",
-                opacity: window.innerWidth < 768 ? 0.5 : 1,
+                  "radial-gradient(circle, rgba(99,102,241,0.25) 0%, transparent 70%)",
+                pointerEvents: "none",
               }}
             />
-            <div
-              style={{
-                padding: `clamp(20px, 5vw, 48px) clamp(16px, 4vw, 56px)`,
-                position: "relative",
-                zIndex: 1,
-                flex: 1,
-              }}
-            >
+            <div style={{ maxWidth: "580px", zIndex: 1 }}>
               <div
                 style={{
                   display: "inline-block",
-                  padding: "clamp(4px 10px, 2vw, 6px 16px)",
+                  padding: "4px 14px",
                   borderRadius: "8px",
-                  background: "rgba(255,255,255,0.06)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  fontSize: "clamp(9px, 2vw, 11px)",
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  fontSize: "11px",
                   fontWeight: 600,
                   letterSpacing: "0.12em",
                   textTransform: "uppercase",
-                  color: "rgba(255,255,255,0.6)",
-                  marginBottom: "clamp(8px, 2vw, 16px)",
+                  color: "#c7d2fe",
+                  marginBottom: "14px",
                 }}
               >
-                Knowledge Hub
+                Knowledge &amp; Tech Hub
               </div>
               <h1
                 style={{
                   fontFamily: "'DM Serif Display', Georgia, serif",
-                  fontSize: "clamp(24px, 6vw, 48px)",
+                  fontSize: "clamp(28px, 6vw, 48px)",
                   fontWeight: 400,
-                  margin: 0,
-                  letterSpacing: "-0.03em",
-                  lineHeight: 1.1,
+                  margin: "0 0 12px",
+                  letterSpacing: "-0.02em",
+                  lineHeight: 1.15,
                   color: "#fff",
                 }}
               >
-                Trends &amp; Blogs
+                Ideas, Code &amp; Perspectives
               </h1>
               <p
                 style={{
-                  color: "rgba(255,255,255,0.45)",
-                  fontSize: "clamp(12px, 3vw, 14px)",
-                  marginTop: "clamp(8px, 2vw, 12px)",
-                  maxWidth: "400px",
+                  color: "rgba(255,255,255,0.6)",
+                  fontSize: "clamp(13px, 2.5vw, 15px)",
                   lineHeight: 1.6,
+                  margin: 0,
                 }}
               >
-                Stay informed with expert insights on finance, technology,
-                startup and design.
+                Discover student research, tech breakdowns, startup stories, and
+                campus guides curated by the Industry Cell NIT Kurukshetra.
               </p>
             </div>
-            <div
-              style={{
-                padding: `clamp(20px, 5vw, 48px) clamp(16px, 4vw, 56px)`,
-                position: "relative",
-                zIndex: 1,
-                width: window.innerWidth < 768 ? "100%" : "auto",
-              }}
-            >
+
+            <div style={{ zIndex: 1 }}>
               <button
                 onClick={() => navigate("/write-blog")}
-                className="relative overflow-hidden px-clamp(4, 1.5vw, 6) py-2 rounded-[15px] bg-[#e8e8e8] text-[#212121] font-extrabold text-clamp(13px, 2vw, 15px) shadow-[4px_8px_19px_-3px_rgba(0,0,0,0.27)] transition-all duration-300 group flex items-center justify-center gap-2 w-full sm:w-auto"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "14px 28px",
+                  borderRadius: "999px",
+                  background: "#ffffff",
+                  color: "#0f172a",
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  border: "none",
+                  cursor: "pointer",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                  fontFamily: "'DM Sans', sans-serif",
+                  transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow =
+                    "0 12px 28px rgba(99,102,241,0.3)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow =
+                    "0 8px 24px rgba(0,0,0,0.4)";
+                }}
               >
-                <span className="absolute inset-0 w-0 bg-[#212121] rounded-[15px] transition-all duration-300 group-hover:w-full z-0" />
-                <span className="relative z-10 flex items-center gap-2 group-hover:text-[#e8e8e8] transition-colors duration-300">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                    <path
-                      d="M12 2L14 4L6 12H4V10L12 2Z"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M2 14H14"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  Create Blog
-                </span>
+                <span>✍️ Write an Article</span>
               </button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Filter */}
+      {/* Search & Category Filter Section */}
       <section
         style={{
-          maxWidth: "1200px",
+          maxWidth: "1240px",
           margin: "0 auto",
-          padding: "clamp(24px, 5vw, 40px) clamp(12px, 4vw, 24px) 0",
+          padding: "clamp(24px, 4vw, 36px) clamp(16px, 4vw, 32px) 0",
         }}
       >
         <div
           style={{
-            padding: "clamp(12px, 3vw, 20px) clamp(12px, 3vw, 24px)",
-            borderRadius: "16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "20px",
+            padding: "20px",
+            borderRadius: "20px",
             background: "rgba(255,255,255,0.02)",
             border: "1px solid rgba(255,255,255,0.06)",
           }}
         >
+          {/* Search Bar */}
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+            }}
+          >
+            <span
+              style={{
+                position: "absolute",
+                left: "16px",
+                color: "rgba(255,255,255,0.4)",
+                fontSize: "16px",
+                pointerEvents: "none",
+              }}
+            >
+              🔍
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search blogs by title, keywords, author, or #tag..."
+              style={{
+                width: "100%",
+                padding: "13px 44px 13px 44px",
+                borderRadius: "14px",
+                border: "1px solid rgba(255,255,255,0.1)",
+                background: "rgba(255,255,255,0.04)",
+                color: "#fff",
+                fontSize: "14px",
+                outline: "none",
+                fontFamily: "'DM Sans', sans-serif",
+                transition: "border 0.2s ease, background 0.2s ease",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.border = "1px solid rgba(99,102,241,0.5)";
+                e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.border = "1px solid rgba(255,255,255,0.1)";
+                e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                style={{
+                  position: "absolute",
+                  right: "14px",
+                  background: "rgba(255,255,255,0.1)",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "24px",
+                  height: "24px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                }}
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Category Pills */}
           <BlogFilter
             activeCategory={activeCategory}
             onCategoryChange={setActiveCategory}
@@ -341,108 +338,189 @@ export default function BlogsPage() {
         </div>
       </section>
 
-      {/* Loading state */}
-      {loading && (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "80px 0",
-            color: "rgba(255,255,255,0.3)",
-            fontSize: "14px",
-          }}
-        >
-          Loading blogs...
-        </div>
-      )}
+      {/* Main Content Area: Responsive Grid */}
+      <section
+        style={{
+          maxWidth: "1240px",
+          margin: "0 auto",
+          padding: "clamp(30px, 5vw, 48px) clamp(16px, 4vw, 32px)",
+        }}
+      >
+        {/* Title & Active Filter Summary */}
+        <SectionTitle
+          title={
+            searchQuery.trim()
+              ? `Search Results for "${searchQuery}"`
+              : activeCategory === "All"
+              ? "All Publications"
+              : activeCategory
+          }
+          count={filteredBlogs.length}
+        />
 
-      {/* Category filtered view */}
-      {!loading && activeCategory !== "All" && (
-        <section
-          style={{
-            maxWidth: "1200px",
-            margin: "0 auto",
-            padding: "clamp(24px, 5vw, 40px) clamp(12px, 4vw, 24px)",
-          }}
-        >
-          <SectionTitle title={activeCategory} />
-          {filteredBlogs.length > 0 ? (
+        {/* Loading Spinner */}
+        {loading && (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "90px 0",
+              color: "rgba(255,255,255,0.4)",
+              fontSize: "15px",
+            }}
+          >
+            Loading publications...
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!loading && filteredBlogs.length === 0 && (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "70px 20px",
+              borderRadius: "20px",
+              background: "rgba(255,255,255,0.015)",
+              border: "1px dashed rgba(255,255,255,0.1)",
+            }}
+          >
+            <div style={{ fontSize: "44px", marginBottom: "14px" }}>🔍</div>
+            <h3
+              style={{
+                color: "#fff",
+                fontSize: "18px",
+                fontWeight: 600,
+                margin: "0 0 8px",
+              }}
+            >
+              No articles found
+            </h3>
+            <p
+              style={{
+                color: "rgba(255,255,255,0.4)",
+                fontSize: "14px",
+                maxWidth: "420px",
+                margin: "0 auto 20px",
+                lineHeight: 1.6,
+              }}
+            >
+              We couldn't find any articles matching your search query or category
+              filter.
+            </p>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+              {(searchQuery || activeCategory !== "All") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setActiveCategory("All");
+                  }}
+                  style={{
+                    padding: "10px 20px",
+                    borderRadius: "999px",
+                    background: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    color: "#fff",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Clear Filters
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => navigate("/write-blog")}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: "999px",
+                  background: "#6366f1",
+                  border: "none",
+                  color: "#fff",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Write an Article
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Responsive Grid with Cards */}
+        {!loading && filteredBlogs.length > 0 && (
+          <>
             <div
               style={{
                 display: "grid",
                 gridTemplateColumns:
-                  "repeat(auto-fill, minmax(clamp(250px, 80vw, 320px), 1fr))",
-                gap: "clamp(12px, 3vw, 20px)",
+                  "repeat(auto-fill, minmax(clamp(270px, 30vw, 360px), 1fr))",
+                gap: "28px",
               }}
             >
-              {filteredBlogs.map((blog) => (
-                <BlogCard key={blog.id} blog={blog} onClick={handleCardClick} />
+              {visibleBlogs.map((blog) => (
+                <BlogCard
+                  key={blog._id || blog.id}
+                  blog={blog}
+                  onClick={handleCardClick}
+                />
               ))}
             </div>
-          ) : (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "clamp(40px, 10vw, 80px) 0",
-                color: "rgba(255,255,255,0.3)",
-                fontSize: "15px",
-              }}
-            >
-              No blogs found in this category yet.
-            </div>
-          )}
-        </section>
-      )}
 
-      {/* All sections */}
-      {!loading && activeCategory === "All" && (
-        <div
-          style={{
-            maxWidth: "1200px",
-            margin: "0 auto",
-            padding: "clamp(24px, 5vw, 40px) clamp(12px, 4vw, 24px)",
-          }}
-        >
-          {recentBlogs.length > 0 && (
-            <section style={{ marginBottom: "clamp(30px, 8vw, 56px)" }}>
-              <SectionTitle title="Recent Blogs" />
-              <BlogSlider blogs={recentBlogs} onCardClick={handleCardClick} />
-            </section>
-          )}
-          {popularBlogs.length > 0 && (
-            <section style={{ marginBottom: "clamp(30px, 8vw, 56px)" }}>
-              <SectionTitle title="Most Popular" />
-              <BlogSlider blogs={popularBlogs} onCardClick={handleCardClick} />
-            </section>
-          )}
-          {SECTION_CATEGORIES.map((cat) => {
-            const catBlogs = blogs.filter((b) => b.category === cat);
-            if (catBlogs.length === 0) return null;
-            return (
-              <section
-                key={cat}
-                style={{ marginBottom: "clamp(30px, 8vw, 56px)" }}
+            {/* Pagination / Load More */}
+            {hasMore && (
+              <div
+                style={{
+                  marginTop: "48px",
+                  textAlign: "center",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "12px",
+                }}
               >
-                <SectionTitle title={cat} />
-                <BlogSlider blogs={catBlogs} onCardClick={handleCardClick} />
-              </section>
-            );
-          })}
-          {blogs.length === 0 && (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "clamp(40px, 10vw, 80px) 0",
-                color: "rgba(255,255,255,0.3)",
-                fontSize: "15px",
-              }}
-            >
-              No blogs published yet. Be the first to write one!
-            </div>
-          )}
-        </div>
-      )}
+                <p
+                  style={{
+                    color: "rgba(255,255,255,0.4)",
+                    fontSize: "13px",
+                    margin: 0,
+                  }}
+                >
+                  Showing {visibleBlogs.length} of {filteredBlogs.length} publications
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((prev) => prev + 6)}
+                  style={{
+                    padding: "12px 32px",
+                    borderRadius: "999px",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    background: "rgba(255,255,255,0.04)",
+                    color: "#fff",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "rgba(255,255,255,0.1)";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
+                  }}
+                >
+                  Load More Publications ↓
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </section>
 
-      <div style={{ height: "60px" }} />
+      <Footer />
     </div>
   );
 }

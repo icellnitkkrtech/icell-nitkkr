@@ -7,11 +7,14 @@ import {
   X,
   Save,
   Search,
-  Download,
   Plus,
   Calendar,
   Trash2,
   ArrowLeft,
+  AlertTriangle,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
@@ -44,6 +47,38 @@ export default function AdminAttendance() {
   const [attendance, setAttendance] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("all"); // Filter by role: "all", "student", "member"
+
+  // On-screen Modals & Notifications
+  const [confirmDialog, setConfirmDialog] = useState(null); // { title, message, confirmText, onConfirm }
+  const [alertDialog, setAlertDialog] = useState(null); // { title, message, type: "error"|"warning"|"success" }
+  const [toast, setToast] = useState(null); // { type: "success"|"error", message: string }
+
+  const showAlert = (title, message, type = "error") => {
+    setAlertDialog({ title, message, type });
+  };
+
+  const showToast = (type, message) => {
+    setToast({ type, message });
+  };
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  // Handle Escape key to close active dialogs
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        if (confirmDialog && !deleting) setConfirmDialog(null);
+        if (alertDialog) setAlertDialog(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [confirmDialog, alertDialog, deleting]);
 
   // Academic years available (stored as strings in database: "1st", "2nd", "3rd", "4th")
   const AVAILABLE_YEARS = ["1", "2", "3", "4"];
@@ -165,47 +200,59 @@ export default function AdminAttendance() {
       }
     } catch (err) {
       console.error("Failed to load existing attendance", err);
-      alert("Failed to load attendance for this event.");
+      showAlert(
+        "Error Loading Event",
+        "Failed to load attendance records for this event.",
+        "error"
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  // Delete an entire event
-  const handleDeleteEvent = async (name, date, e) => {
+  // Delete an entire event with custom confirmation dialog
+  const handleDeleteEvent = (name, date, e) => {
     e.stopPropagation(); // Prevent triggering the row click
-    if (
-      !window.confirm(
-        `Are you sure you want to delete "${name}"? This removes all attendance records for this event.`
-      )
-    ) {
-      return;
-    }
 
-    try {
-      setDeleting(true);
-      const token = getToken();
-      const res = await fetch(
-        `${API}/api/event-attendance/event?name=${encodeURIComponent(
-          name
-        )}&date=${date}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
+    setConfirmDialog({
+      title: "Delete Attendance Event",
+      message: `Are you sure you want to delete "${name}" (${new Date(
+        date
+      ).toLocaleDateString()})? This will permanently remove all student attendance records for this event.`,
+      confirmText: "Delete Event",
+      onConfirm: async () => {
+        try {
+          setDeleting(true);
+          const token = getToken();
+          const res = await fetch(
+            `${API}/api/event-attendance/event?name=${encodeURIComponent(
+              name
+            )}&date=${date}`,
+            {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+
+          if (!res.ok) throw new Error("Failed to delete event");
+
+          // Refresh the list
+          await fetchInitialData();
+          setConfirmDialog(null);
+          showToast("success", `Event "${name}" deleted successfully!`);
+        } catch (err) {
+          console.error(err);
+          setConfirmDialog(null);
+          showAlert(
+            "Delete Failed",
+            `Could not delete event: ${err.message}`,
+            "error"
+          );
+        } finally {
+          setDeleting(false);
         }
-      );
-
-      if (!res.ok) throw new Error("Failed to delete event");
-
-      // Refresh the list
-      await fetchInitialData();
-      alert("Event deleted successfully!");
-    } catch (err) {
-      console.error(err);
-      alert(`Error: ${err.message}`);
-    } finally {
-      setDeleting(false);
-    }
+      },
+    });
   };
 
   const handleCreateNew = () => {
@@ -254,7 +301,11 @@ export default function AdminAttendance() {
     // User filled form in "select" view and clicked "Create & Mark Attendance"
     // Preserve the filled values and transition to attendance marking view
     if (!eventName.trim()) {
-      alert("Please provide an Event Name");
+      showAlert(
+        "Event Name Required",
+        "Please provide an Event Name before proceeding to mark attendance.",
+        "warning"
+      );
       return;
     }
     setAttendance({}); // Clear attendance data for the new event
@@ -283,7 +334,11 @@ export default function AdminAttendance() {
 
   const handleSave = async () => {
     if (!eventName.trim()) {
-      alert("Please provide an Event Name");
+      showAlert(
+        "Event Name Required",
+        "Please provide an Event Name before saving attendance.",
+        "warning"
+      );
       return;
     }
 
@@ -316,13 +371,17 @@ export default function AdminAttendance() {
       );
 
       await Promise.all(savePromises);
-      alert("Attendance saved successfully!");
+      showToast("success", `Attendance for "${eventName}" saved successfully!`);
       if (viewState === "create") {
         setViewState("edit"); // Switch to edit mode so they don't create duplicates
       }
     } catch (err) {
       console.error(err);
-      alert(`Error: ${err.message}`);
+      showAlert(
+        "Save Failed",
+        `Could not save attendance: ${err.message}`,
+        "error"
+      );
     } finally {
       setSaving(false);
     }
@@ -360,8 +419,6 @@ export default function AdminAttendance() {
     absent: filteredStudents.filter(
       (s) => attendance[s._id || s.id] === "absent"
     ).length,
-    leave: filteredStudents.filter((s) => attendance[s._id || s.id] === "leave")
-      .length,
   };
 
   if (loading && students.length === 0) {
@@ -773,7 +830,7 @@ export default function AdminAttendance() {
             </div>
 
             {/* Stats Summary */}
-            <div className="grid grid-cols-4 gap-3 mb-6">
+            <div className="grid grid-cols-3 gap-3 mb-6">
               <div className="p-3 rounded-lg bg-[#111111] border border-[#1f1f1f] text-center">
                 <p className="text-xs text-[#555] mb-1">Total</p>
                 <p className="text-xl font-bold text-white">{stats.total}</p>
@@ -787,12 +844,6 @@ export default function AdminAttendance() {
               <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-center">
                 <p className="text-xs text-red-400 mb-1">Absent</p>
                 <p className="text-xl font-bold text-red-400">{stats.absent}</p>
-              </div>
-              <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-center">
-                <p className="text-xs text-yellow-400 mb-1">Leave</p>
-                <p className="text-xl font-bold text-yellow-400">
-                  {stats.leave}
-                </p>
               </div>
             </div>
 
@@ -854,19 +905,6 @@ export default function AdminAttendance() {
                             >
                               <X size={18} />
                             </button>
-                            <button
-                              onClick={() =>
-                                handleAttendanceChange(studentId, "leave")
-                              }
-                              className={`p-2 rounded ${
-                                attendance[studentId] === "leave"
-                                  ? "bg-yellow-500 text-white"
-                                  : "bg-[#1f1f1f] text-[#666] hover:bg-[#2f2f2f]"
-                              }`}
-                              title="Mark Leave"
-                            >
-                              <Download size={18} />
-                            </button>
                           </div>
                         </td>
                       </tr>
@@ -886,6 +924,138 @@ export default function AdminAttendance() {
           </>
         )}
       </div>
+
+      {/* ── ON-SCREEN CONFIRMATION MODAL ───────────────────────── */}
+      {confirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md rounded-2xl border border-[#1f1f1f] bg-[#111111] p-6 shadow-2xl"
+          >
+            <div className="flex items-start gap-4 mb-4">
+              <div className="p-3 rounded-xl bg-red-500/10 text-red-400 border border-red-500/20 shrink-0">
+                <Trash2 size={24} />
+              </div>
+              <div className="flex-1">
+                <h3
+                  className="text-lg font-bold text-white mb-1.5"
+                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                >
+                  {confirmDialog.title}
+                </h3>
+                <p className="text-sm text-[#888] leading-relaxed">
+                  {confirmDialog.message}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-[#1f1f1f]">
+              <button
+                onClick={() => !deleting && setConfirmDialog(null)}
+                disabled={deleting}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-[#aaa] hover:text-white hover:bg-[#1a1a1a] transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDialog.onConfirm}
+                disabled={deleting}
+                className="px-4 py-2 rounded-lg text-sm font-semibold bg-red-600 hover:bg-red-700 text-white transition disabled:opacity-50 flex items-center gap-2"
+              >
+                {deleting && <Loader2 size={16} className="animate-spin" />}
+                {deleting
+                  ? "Deleting..."
+                  : confirmDialog.confirmText || "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ON-SCREEN ALERT MODAL ──────────────────────────────── */}
+      {alertDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md rounded-2xl border border-[#1f1f1f] bg-[#111111] p-6 shadow-2xl"
+          >
+            <div className="flex items-start gap-4 mb-4">
+              <div
+                className={`p-3 rounded-xl border shrink-0 ${
+                  alertDialog.type === "success"
+                    ? "bg-green-500/10 text-green-400 border-green-500/20"
+                    : alertDialog.type === "warning"
+                    ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
+                    : "bg-red-500/10 text-red-400 border-red-500/20"
+                }`}
+              >
+                {alertDialog.type === "success" ? (
+                  <CheckCircle2 size={24} />
+                ) : alertDialog.type === "warning" ? (
+                  <AlertTriangle size={24} />
+                ) : (
+                  <AlertCircle size={24} />
+                )}
+              </div>
+              <div className="flex-1">
+                <h3
+                  className="text-lg font-bold text-white mb-1.5"
+                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+                >
+                  {alertDialog.title}
+                </h3>
+                <p className="text-sm text-[#888] leading-relaxed">
+                  {alertDialog.message}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end mt-6 pt-4 border-t border-[#1f1f1f]">
+              <button
+                onClick={() => setAlertDialog(null)}
+                className={`px-5 py-2 rounded-lg text-sm font-semibold text-white transition ${
+                  alertDialog.type === "success"
+                    ? "bg-green-600 hover:bg-green-700"
+                    : alertDialog.type === "warning"
+                    ? "bg-yellow-600 hover:bg-yellow-700 text-black font-bold"
+                    : "bg-purple-600 hover:bg-purple-700"
+                }`}
+              >
+                OK, got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── FLOATING TOAST NOTIFICATION ────────────────────────── */}
+      {toast && (
+        <div
+          role="status"
+          className="fixed bottom-6 right-6 z-[60] flex max-w-sm items-center gap-3 rounded-xl border px-4 py-3 text-sm shadow-2xl"
+          style={{
+            background: toast.type === "success" ? "#0f2a1f" : "#2a1212",
+            borderColor: toast.type === "success" ? "#10b98150" : "#ef444450",
+            color: toast.type === "success" ? "#6ee7b7" : "#fca5a5",
+          }}
+        >
+          {toast.type === "success" ? (
+            <CheckCircle2 size={18} className="shrink-0 text-emerald-400" />
+          ) : (
+            <AlertCircle size={18} className="shrink-0 text-rose-400" />
+          )}
+          <span className="flex-1 font-medium">{toast.message}</span>
+          <button
+            onClick={() => setToast(null)}
+            className="p-1 rounded-md opacity-70 hover:opacity-100 hover:bg-white/10 transition"
+            aria-label="Close notification"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

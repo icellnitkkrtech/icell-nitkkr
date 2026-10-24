@@ -23,6 +23,6 @@ router.get("/user/:userId", verifyUser, getUserBlogs);
 // Admin routes
 router.get("/admin/all", verifyUser, requireAdmin, getAllBlogsAdmin);
 router.patch("/:id/status", verifyUser, requireAdmin, patchBlogStatus);
-router.delete("/:id", verifyUser, requireAdmin, deleteBlog);
+router.delete("/:id", verifyUser, deleteBlog);
 
 export default router;

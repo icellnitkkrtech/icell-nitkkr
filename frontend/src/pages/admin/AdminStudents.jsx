@@ -15,8 +15,21 @@ import {
   Loader2,
 } from "lucide-react";
 
-const BRANCHES = ["CSE", "ECE", "ME", "CIVIL", "EEE", "BT"];
-const YEARS = ["1", "2", "3", "4"];
+const BRANCHES = ["CSE",
+    "IT",
+    "AIDS",
+    "AIML",
+    "MnC",
+    "ECE",
+    "ME",
+    "Civil",
+    "EE",
+    "PIE",
+    "IIOT",
+    "SET",
+    "Robotics",
+    "Others"];
+const YEARS = ["1", "2", "3", "4","5","6"];
 const POSITIONS = [
   "Convener",
   "Co-Convener",
@@ -24,6 +37,7 @@ const POSITIONS = [
   "Treasurer",
   "Event Coordinator",
   "Design Head",
+  "Media Head",
   "Tech Head",
   "Outreach Head",
   "Management Head",
@@ -80,30 +94,34 @@ export default function AdminStudents() {
         ? response.data
         : response.data.students || [];
       setStudents(data);
+      // OPTION 2: Immediately unblock the UI so the table, search, and filters render instantly
+      setLoading(false);
 
-      // Fetch attendance stats for all students
+      // Progressively fetch attendance stats for all students in background
       if (data.length > 0) {
         try {
           setAttendanceLoading(true);
-          const studentIds = data.map((s) => s._id);
-          // console.log("Sending studentIds:", studentIds);
-          const attendanceResponse = await api.post(
-            "event-attendance/students/bulk-stats",
-            { studentIds }
-          );
-          // console.log("Attendance API Response:", attendanceResponse.data);
-          setAttendance(attendanceResponse.data || {});
+          const studentIds = data.map((s) => s._id).filter(Boolean);
+          if (studentIds.length > 0) {
+            const attendanceResponse = await api.post(
+              "event-attendance/students/bulk-stats",
+              { studentIds }
+            );
+            setAttendance(attendanceResponse.data || {});
+          } else {
+            setAttendance({});
+          }
         } catch (err) {
           console.error("Error fetching attendance:", err);
           console.error("Error response:", err.response?.data);
-          setAttendance({});
         } finally {
           setAttendanceLoading(false);
         }
+      } else {
+        setAttendance({});
       }
     } catch (err) {
       console.error("Error fetching students:", err);
-    } finally {
       setLoading(false);
     }
   }, []);
@@ -438,7 +456,7 @@ export default function AdminStudents() {
                   Loading Student Records
                 </h3>
                 <p className="text-xs sm:text-sm text-[#777] max-w-md">
-                  Fetching students directory and calculating bulk attendance metrics...
+                  Fetching students directory...
                 </p>
               </div>
 
@@ -495,7 +513,12 @@ export default function AdminStudents() {
                           Roll #
                         </th> */}
                         <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
-                          Attend.
+                          <div className="flex items-center gap-1.5">
+                            <span>Attend.</span>
+                            {attendanceLoading && (
+                              <Loader2 size={12} className="animate-spin text-purple-400" />
+                            )}
+                          </div>
                         </th>
                         <th className="px-3 sm:px-6 py-3 sm:py-4 text-left text-xs sm:text-sm font-semibold text-white whitespace-nowrap">
                           Role
@@ -534,8 +557,12 @@ export default function AdminStudents() {
                               {student.roll_number || "-"}
                             </td> */}
                             <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm">
-                              {attendanceLoading ? (
-                                <span className="text-[#555]">Loading...</span>
+                              {attendanceLoading && !attendanceData ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-16 h-5 rounded-full bg-[#1b1b1b] border border-[#262626] animate-pulse flex items-center justify-center">
+                                    <div className="w-8 h-2 bg-[#2d2d2d] rounded-full" />
+                                  </div>
+                                </div>
                               ) : total === 0 ? (
                                 <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-medium bg-[#1f1f1f] text-[#666]">
                                   No data
