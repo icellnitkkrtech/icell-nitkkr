@@ -15,8 +15,21 @@ import {
   Loader2,
 } from "lucide-react";
 
-const BRANCHES = ["CSE", "ECE", "ME", "CIVIL", "EEE", "BT"];
-const YEARS = ["1", "2", "3", "4"];
+const BRANCHES = ["CSE",
+    "IT",
+    "AIDS",
+    "AIML",
+    "MnC",
+    "ECE",
+    "ME",
+    "Civil",
+    "EE",
+    "PIE",
+    "IIOT",
+    "SET",
+    "Robotics",
+    "Others"];
+const YEARS = ["1", "2", "3", "4","5","6"];
 const POSITIONS = [
   "Convener",
   "Co-Convener",
@@ -24,6 +37,7 @@ const POSITIONS = [
   "Treasurer",
   "Event Coordinator",
   "Design Head",
+  "Media Head",
   "Tech Head",
   "Outreach Head",
   "Management Head",
