@@ -14,6 +14,7 @@ import {
   Shield,
   BarChart3,
 } from "lucide-react";
+import UserBlogsSection from "../../components/profile/UserBlogsSection";
 
 export default function AdminProfile() {
   const navigate = useNavigate();
@@ -494,6 +495,9 @@ export default function AdminProfile() {
                     )}
                   </div>
                 )}
+
+                {/* My Articles Section (Reusable for Post Holder & Admin) */}
+                <UserBlogsSection userId={user?.id || user?._id || user?.userId} />
 
                 {/* Logout Button */}
                 <button

@@ -13,6 +13,7 @@ import {
   CheckCircle,
   BarChart3,
 } from "lucide-react";
+import UserBlogsSection from "../../components/profile/UserBlogsSection";
 
 export default function MemberProfile() {
   const navigate = useNavigate();
@@ -565,6 +566,9 @@ export default function MemberProfile() {
                 </div>
               </div>
             </div>
+
+            {/* My Blogs Section */}
+            <UserBlogsSection userId={user?.id || user?._id || user?.userId} />
           </div>
         </div>
 

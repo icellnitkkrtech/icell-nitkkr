@@ -14,6 +14,7 @@ import {
   BarChart3,
   Download,
 } from "lucide-react";
+import UserBlogsSection from "../../components/profile/UserBlogsSection";
 
 export default function StudentProfile() {
   const navigate = useNavigate();
@@ -596,6 +597,9 @@ export default function StudentProfile() {
                 </div>
               </div>
             </div>
+
+            {/* My Blogs Section */}
+            <UserBlogsSection userId={user?.id || user?._id || user?.userId} />
           </div>
         </div>
 

@@ -30,7 +30,9 @@ export async function connectDB() {
     const attendance = db.collection("event_attendance");
 
     await profiles.createIndex({ email: 1 }, { unique: true});
-    await blogs.createIndex({ email: 1 });
+    await blogs.createIndex({ status: 1, created_at: -1 });
+    await blogs.createIndex({ author_id: 1, created_at: -1 });
+    await blogs.createIndex({ tags: 1 });
     await events.createIndex({ date: 1 });
     await students.createIndex({ roll_number: 1 });
     await attendance.createIndex({ student_id: 1, status: 1 });
