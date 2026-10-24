@@ -28,7 +28,7 @@ export const markStudentAttendance = async (req, res) => {
       return res.status(400).json({ error: "Missing required event details" });
     }
 
-    if (!["present", "absent", "leave", null].includes(status)) {
+    if (!["present", "absent", null].includes(status)) {
       return res.status(400).json({ error: "Invalid status" });
     }
 
@@ -108,21 +108,20 @@ export const getBulkStudentsAttendanceStats = async (req, res) => {
     //   studentIds
     // );
 
-    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+    if (!Array.isArray(studentIds)) {
       return res.status(400).json({ error: "studentIds array is required" });
+    }
+
+    if (studentIds.length === 0) {
+      return res.json({});
     }
 
     const { data, error } = await fetchMultipleStudentsAttendanceStats(
       studentIds
     );
-    // console.log(
-    //   "fetchMultipleStudentsAttendanceStats returned:",
-    //   data,
-    //   "error:",
-    //   error
-    // );
+
     if (error) return res.status(400).json({ error: error.message });
-    res.json(data);
+    res.json(data || {});
   } catch (err) {
     console.error("getBulkStudentsAttendanceStats error:", err);
     res.status(500).json({ error: "Server error" });

@@ -58,13 +58,9 @@ export default function StudentProfile() {
           const attendanceResponse = await api.get("/auth/attendance");
           const attendanceData = attendanceResponse.data || [];
 
-          // Only count events where attendance was actually marked
-          // Filter to include only present, absent, or leave status
+          // Only count events where attendance was actually marked (present or absent)
           const markedEvents = attendanceData.filter(
-            (d) =>
-              d.status === "present" ||
-              d.status === "absent" ||
-              d.status === "leave"
+            (d) => d.status === "present" || d.status === "absent"
           );
 
           const total = markedEvents.length;

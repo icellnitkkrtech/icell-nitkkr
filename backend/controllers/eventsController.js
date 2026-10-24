@@ -149,7 +149,7 @@ export async function markAttendance(req, res) {
         .json({ error: "Student ID and status are required" });
     }
 
-    if (!["present", "absent", "leave"].includes(status)) {
+    if (!["present", "absent"].includes(status)) {
       return res.status(400).json({ error: "Invalid status value" });
     }
 

@@ -85,7 +85,8 @@ export async function getAllMembers(req, res) {
 
     const members = await profiles
       .find({ is_member: true })
-      .sort({ created_at: -1 })
+      .collation({ locale: "en", strength: 2 })
+      .sort({ name: 1 })
       .toArray();
 
     res.json(members);
