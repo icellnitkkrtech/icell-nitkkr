@@ -17,7 +17,7 @@ A full-stack web application for managing the Innovation Cell at NIT Kurukshetra
 - **Database:** MongoDB
 - **Authentication:** JWT (JSON Web Tokens) & bcryptjs
 - **File Uploads:** Multer & Cloudinary
-- **Emails/Newsletters:** Mailjet
+- **Emails** Mailjet
 - **Utilities:** CSV Parser, express-rate-limit, helmet, uuid
 
 ## ✨ Key Features

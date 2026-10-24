@@ -1,5 +1,6 @@
 import { getDB } from "../config/mongodb.js";
 import { v4 as uuidv4 } from "uuid";
+import { ObjectId } from "mongodb";
 
 // Mark attendance
 // event_source: "main" = from events collection, "attendance_only" = created just for attendance
@@ -105,12 +106,12 @@ export async function fetchStudentEventAttendance(studentId) {
     const db = getDB();
     const attendance = db.collection("event_attendance");
 
-    // Query only records where status is actually marked (present, absent, or leave)
+    // Query only records where status is actually marked (present or absent)
     // Excludes blank/null status entries
     const records = await attendance
       .find({
         student_id: studentId,
-        status: { $in: ["present", "absent", "leave"] },
+        status: { $in: ["present", "absent"] },
       })
       .sort({ marked_at: -1 })
       .toArray();
@@ -122,32 +123,30 @@ export async function fetchStudentEventAttendance(studentId) {
 }
 
 // Fetch student attendance stats
-// Only counts events where attendance was actually marked (status is not blank/null)
+// Only counts events where attendance was actually marked (status is present or absent)
 export async function fetchStudentAttendanceStats(studentId) {
   try {
     const db = getDB();
     const attendance = db.collection("event_attendance");
 
-    // Query only records where status is actually marked (present, absent, OR leave)
-    // Percentage is based on: (present / (present + absent + leave)) * 100
+    // Query only records where status is actually marked (present or absent)
+    // Percentage is based on: (present / (present + absent)) * 100
     const records = await attendance
       .find({
         student_id: studentId,
-        status: { $in: ["present", "absent", "leave"] },
+        status: { $in: ["present", "absent"] },
       })
       .toArray();
 
     const presentCount = records.filter((r) => r.status === "present").length;
     const absentCount = records.filter((r) => r.status === "absent").length;
-    const leaveCount = records.filter((r) => r.status === "leave").length;
-    const totalCount = presentCount + absentCount + leaveCount; // Include ALL marked events
+    const totalCount = presentCount + absentCount;
 
     const stats = {
       total: totalCount,
       present: presentCount,
       absent: absentCount,
-      leave: leaveCount,
-      // Percentage = (present / (present + absent + leave)) * 100
+      // Percentage = (present / (present + absent)) * 100
       percentage:
         totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0,
     };
@@ -163,40 +162,102 @@ export async function fetchStudentAttendanceStats(studentId) {
  */
 export async function fetchMultipleStudentsAttendanceStats(studentIds) {
   try {
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+      return { data: {}, error: null };
+    }
+
     const db = getDB();
     const attendance = db.collection("event_attendance");
 
+    // Initialize all requested student IDs with default stats
     const results = {};
+    const sanitizedIds = Array.from(
+      new Set(
+        studentIds
+          .filter((id) => id !== null && id !== undefined && id !== "")
+          .map((id) => String(id).trim())
+      )
+    );
 
-    for (const studentId of studentIds) {
-      console.log(`Querying attendance for studentId: ${studentId}`);
-
-      // Query only records where status is actually marked (present, absent, OR leave)
-      const records = await attendance
-        .find({
-          student_id: studentId,
-          status: { $in: ["present", "absent", "leave"] },
-        })
-        .toArray();
-
-      console.log(`  Found ${records.length} attendance records`);
-
-      const presentCount = records.filter((r) => r.status === "present").length;
-      const absentCount = records.filter((r) => r.status === "absent").length;
-      const leaveCount = records.filter((r) => r.status === "leave").length;
-      const totalCount = presentCount + absentCount + leaveCount; // Include ALL marked events
-
-      results[studentId] = {
-        total: totalCount,
-        present: presentCount,
-        absent: absentCount,
-        leave: leaveCount,
-        percentage:
-          totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0,
+    for (const id of sanitizedIds) {
+      results[id] = {
+        total: 0,
+        present: 0,
+        absent: 0,
+        percentage: 0,
       };
     }
 
-    console.log("Final results:", results);
+    if (sanitizedIds.length === 0) {
+      return { data: results, error: null };
+    }
+
+    // Build query criteria to match both string UUIDs/IDs and MongoDB ObjectIds
+    const queryIds = [];
+    for (const id of sanitizedIds) {
+      queryIds.push(id);
+      if (ObjectId.isValid(id) && String(new ObjectId(id)) === id) {
+        try {
+          queryIds.push(new ObjectId(id));
+        } catch (e) {
+          // Ignore invalid ObjectId format conversion errors
+        }
+      }
+    }
+
+    // Run single MongoDB aggregation pipeline across all student IDs
+    // Excludes unmarked events and legacy leave options (only present and absent)
+    const aggregatedStats = await attendance
+      .aggregate([
+        {
+          $match: {
+            student_id: { $in: queryIds },
+            status: { $in: ["present", "absent", "Present", "Absent"] },
+          },
+        },
+        {
+          $group: {
+            _id: { $toString: "$student_id" },
+            present: {
+              $sum: {
+                $cond: [
+                  { $in: ["$status", ["present", "Present"]] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            absent: {
+              $sum: {
+                $cond: [
+                  { $in: ["$status", ["absent", "Absent"]] },
+                  1,
+                  0,
+                ],
+              },
+            },
+            total: { $sum: 1 },
+          },
+        },
+      ])
+      .toArray();
+
+    // Map aggregated metrics onto results dictionary
+    for (const stat of aggregatedStats) {
+      const studentId = String(stat._id);
+      const total = stat.total || 0;
+      const present = stat.present || 0;
+      const absent = stat.absent || 0;
+      const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
+
+      results[studentId] = {
+        total,
+        present,
+        absent,
+        percentage,
+      };
+    }
+
     return { data: results, error: null };
   } catch (error) {
     console.error("fetchMultipleStudentsAttendanceStats error:", error);

@@ -1,19 +1,10 @@
+import { BLOG_CATEGORIES } from "../../utils/blogCategories";
 
-
-
-// BlogFilter.jsx
-const CATEGORIES = [
-  "All",
-  "Finance",
-  "Technology",
-  "Startup",
-  "Design",
-  
-];
+const CATEGORIES = ["All", ...BLOG_CATEGORIES];
 
 export default function BlogFilter({ activeCategory, onCategoryChange }) {
   return (
-    <div className="flex flex-wrap gap-4 ">
+    <div className="flex flex-wrap gap-2.5 sm:gap-3 items-center">
       {CATEGORIES.map((cat) => {
         const isActive = activeCategory === cat;
 
@@ -23,37 +14,42 @@ export default function BlogFilter({ activeCategory, onCategoryChange }) {
             onClick={() => onCategoryChange(cat)}
             className={`
               relative overflow-hidden
-              px-6 py-3
-              rounded-[15px]
-              font-extrabold text-[14px]
+              px-4 sm:px-5 py-2 sm:py-2.5
+              rounded-[12px]
+              font-semibold text-[13px]
               transition-all duration-300
-              shadow-[4px_8px_19px_-3px_rgba(0,0,0,0.27)]
+              shadow-[0_4px_12px_rgba(0,0,0,0.3)]
               group
               cursor-pointer
-              ${isActive 
-                ? "bg-[#212121] text-[#e8e8e8]" 
-                : "bg-[#e8e8e8] text-[#212121]"
+              ${
+                isActive
+                  ? "bg-[#6366f1] text-[#ffffff] border border-[#818cf8]"
+                  : "bg-[#18181b] text-[#a1a1aa] border border-[#27272a] hover:text-[#ffffff] hover:border-[#3f3f46]"
               }
             `}
           >
-            {/* Hover Background */}
+            {/* Hover Background for inactive */}
             {!isActive && (
-              <span className="
+              <span
+                className="
                 absolute inset-0
                 w-0
-                bg-[#212121]
-                rounded-[15px]
+                bg-[#27272a]
+                rounded-[12px]
                 transition-all duration-300
                 group-hover:w-full
                 z-0
-              " />
+              "
+              />
             )}
 
             {/* Text */}
-            <span className={`
+            <span
+              className={`
               relative z-10 transition-colors duration-300
-              ${!isActive && "group-hover:text-[#e8e8e8]"}
-            `}>
+              ${!isActive && "group-hover:text-[#ffffff]"}
+            `}
+            >
               {cat}
             </span>
           </button>

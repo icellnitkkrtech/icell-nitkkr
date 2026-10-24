@@ -3,126 +3,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import Footer from "../components/layout/Footer";
 import api from "../services/api";
+import { getOptimizedCloudinaryUrl, CLOUDINARY_PRESETS } from "../utils/cloudinary";
+import MarkdownRenderer from "../components/blog/MarkdownRenderer";
+import { Mail } from "lucide-react";
 
-// ── Inline text renderer: handles **bold** and _italic_ ──────────────────────
-function renderInline(text) {
-  // Handle **bold**
-  const parts = text.split(/(\*\*[^*]+\*\*|_[^_]+_)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**"))
-      return <strong key={i} style={{ color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>{part.slice(2, -2)}</strong>;
-    if (part.startsWith("_") && part.endsWith("_"))
-      return <em key={i} style={{ fontStyle: "italic" }}>{part.slice(1, -1)}</em>;
-    return part;
-  });
-}
 
-// ── Full markdown-style content renderer ─────────────────────────────────────
-function RenderContent({ content }) {
-  if (!content) return null;
 
-  const lines = content.split("\n");
-  const elements = [];
-  let i = 0;
-
-  while (i < lines.length) {
-    const line = lines[i];
-
-    if (line.startsWith("# ")) {
-      elements.push(
-        <h1 key={i} style={{
-          fontFamily: "'DM Serif Display', Georgia, serif",
-          fontSize: "32px", fontWeight: 400, color: "#fff",
-          margin: "40px 0 16px", letterSpacing: "-0.02em",
-        }}>
-          {line.replace("# ", "")}
-        </h1>
-      );
-    } else if (line.startsWith("## ")) {
-      elements.push(
-        <h2 key={i} style={{
-          fontFamily: "'DM Serif Display', Georgia, serif",
-          fontSize: "24px", fontWeight: 400, color: "#fff",
-          margin: "36px 0 14px", paddingBottom: "10px",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
-          letterSpacing: "-0.02em",
-        }}>
-          {line.replace("## ", "")}
-        </h2>
-      );
-    } else if (line.startsWith("### ")) {
-      elements.push(
-        <h3 key={i} style={{
-          fontSize: "17px", fontWeight: 600,
-          color: "rgba(255,255,255,0.9)", margin: "24px 0 10px",
-        }}>
-          {line.replace("### ", "")}
-        </h3>
-      );
-    } else if (line.startsWith("- ") || line.startsWith("* ")) {
-      // Collect consecutive list items
-      const listItems = [];
-      while (i < lines.length && (lines[i].startsWith("- ") || lines[i].startsWith("* "))) {
-        listItems.push(
-          <li key={i} style={{
-            color: "rgba(255,255,255,0.65)", fontSize: "15px",
-            lineHeight: 1.8, marginBottom: "6px",
-          }}>
-            {renderInline(lines[i].replace(/^[-*] /, ""))}
-          </li>
-        );
-        i++;
-      }
-      elements.push(
-        <ul key={`ul-${i}`} style={{ paddingLeft: "20px", margin: "12px 0" }}>
-          {listItems}
-        </ul>
-      );
-      continue;
-    } else if (/^\d+\. /.test(line)) {
-      // Ordered list
-      const listItems = [];
-      while (i < lines.length && /^\d+\. /.test(lines[i])) {
-        listItems.push(
-          <li key={i} style={{
-            color: "rgba(255,255,255,0.65)", fontSize: "15px",
-            lineHeight: 1.8, marginBottom: "8px",
-          }}>
-            {renderInline(lines[i].replace(/^\d+\. /, ""))}
-          </li>
-        );
-        i++;
-      }
-      elements.push(
-        <ol key={`ol-${i}`} style={{ paddingLeft: "22px", margin: "12px 0" }}>
-          {listItems}
-        </ol>
-      );
-      continue;
-    } else if (line.startsWith("---")) {
-      elements.push(
-        <hr key={i} style={{
-          border: "none", borderTop: "1px solid rgba(255,255,255,0.08)",
-          margin: "32px 0",
-        }} />
-      );
-    } else if (line.trim() === "") {
-      // skip blank lines (spacing handled by margins)
-    } else {
-      elements.push(
-        <p key={i} style={{
-          color: "rgba(255,255,255,0.62)", fontSize: "15.5px",
-          lineHeight: 1.85, margin: "0 0 16px",
-        }}>
-          {renderInline(line)}
-        </p>
-      );
-    }
-    i++;
-  }
-
-  return <div>{elements}</div>;
-}
 
 // ── Share button ──────────────────────────────────────────────────────────────
 function ShareButton({ icon, label, href }) {
@@ -176,7 +62,7 @@ function RelatedCard({ blog, onClick }) {
     >
       {blog.image ? (
         <img
-          src={blog.image} alt={blog.title}
+          src={getOptimizedCloudinaryUrl(blog.image, CLOUDINARY_PRESETS.thumbnail) || blog.image} alt={blog.title}
           style={{ width: "100%", height: "130px", objectFit: "cover" }}
         />
       ) : (
@@ -287,12 +173,13 @@ export default function BlogDetailPage() {
   }
 
   // ── Derived data ──────────────────────────────────────────────────────────
+  const currentBlogId = blog._id || blog.id;
   const related = allBlogs
-    .filter(b => b.id !== blog.id && b.category === blog.category)
+    .filter(b => (b._id || b.id) !== currentBlogId && b.category === blog.category)
     .slice(0, 3);
 
   const moreBlogs = related.length < 3
-    ? [...related, ...allBlogs.filter(b => b.id !== blog.id && b.category !== blog.category)].slice(0, 3)
+    ? [...related, ...allBlogs.filter(b => (b._id || b.id) !== currentBlogId && b.category !== blog.category)].slice(0, 3)
     : related;
 
   const linksArray = blog.links
@@ -346,17 +233,30 @@ export default function BlogDetailPage() {
               display: "flex", flexDirection: "column", justifyContent: "center",
               background: "linear-gradient(135deg, #141414 0%, #1a1a2e 100%)",
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
                 <span style={{
                   padding: "5px 14px", borderRadius: "999px", fontSize: "11px",
                   fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase",
                   background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)",
-                  color: "rgba(255,255,255,0.7)",
+                  color: "rgba(255,255,255,0.8)",
                 }}>
                   {blog.category}
                 </span>
-                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "12px" }}>
+                <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>
                   {blog.date}
+                </span>
+                <span style={{
+                  color: "#38bdf8",
+                  fontSize: "12px",
+                  background: "rgba(56,189,248,0.1)",
+                  border: "1px solid rgba(56,189,248,0.2)",
+                  padding: "3px 10px",
+                  borderRadius: "999px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}>
+                  🕒 {blog.read_time || Math.max(1, Math.ceil((blog.content || "").split(/\s+/).filter(Boolean).length / 120))} min read
                 </span>
               </div>
 
@@ -370,7 +270,7 @@ export default function BlogDetailPage() {
               </h1>
 
               {/* Author */}
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: blog.tags?.length ? "14px" : "24px" }}>
                 <div style={{
                   width: 34, height: 34, borderRadius: "50%",
                   background: "linear-gradient(135deg, #6366f1, #a855f7)",
@@ -380,14 +280,59 @@ export default function BlogDetailPage() {
                   {blog.author?.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <p style={{ color: "#fff", fontSize: "13px", fontWeight: 500, margin: 0 }}>
-                    {blog.author}
-                  </p>
-                  <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px", margin: 0 }}>
-                    Author · {blog.date}
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <p style={{ color: "#fff", fontSize: "13px", fontWeight: 500, margin: 0 }}>
+                      {blog.author}
+                    </p>
+                    {blog.author_email && (
+                      <a
+                        href={`mailto:${blog.author_email}`}
+                        title="Contact author via email"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          color: "#818cf8",
+                          fontSize: "11px",
+                          textDecoration: "none",
+                          padding: "1px 6px",
+                          borderRadius: "4px",
+                          background: "rgba(99,102,241,0.1)",
+                          border: "1px solid rgba(99,102,241,0.2)",
+                        }}
+                      >
+                        <Mail size={11} />
+                        <span>{blog.author_email}</span>
+                      </a>
+                    )}
+                  </div>
+                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "11px", margin: "2px 0 0" }}>
+                    {blog.author_role ? `${blog.author_role} · ` : ""}Author · {blog.date}
                   </p>
                 </div>
               </div>
+
+              {/* Tags */}
+              {blog.tags && blog.tags.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "22px" }}>
+                  {blog.tags.map((tag, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        fontSize: "11px",
+                        padding: "3px 10px",
+                        borderRadius: "6px",
+                        background: "rgba(99,102,241,0.12)",
+                        border: "1px solid rgba(99,102,241,0.25)",
+                        color: "#a5b4fc",
+                        fontWeight: 500,
+                      }}
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {/* Share */}
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -413,7 +358,7 @@ export default function BlogDetailPage() {
             <div style={{ position: "relative", overflow: "hidden" }}>
               {blog.image ? (
                 <img
-                  src={blog.image} alt={blog.title}
+                  src={getOptimizedCloudinaryUrl(blog.image, CLOUDINARY_PRESETS.lightbox) || blog.image} alt={blog.title}
                   style={{ width: "100%", height: "100%", objectFit: "cover", minHeight: "320px" }}
                 />
               ) : (
@@ -461,8 +406,8 @@ export default function BlogDetailPage() {
               </div>
             )}
 
-            {/* Full content */}
-            <RenderContent content={blog.content} />
+            {/* Full content with MarkdownRenderer */}
+            <MarkdownRenderer content={blog.content} />
 
             {/* Related links */}
             {linksArray.length > 0 && (
@@ -577,22 +522,62 @@ export default function BlogDetailPage() {
               </p>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <div style={{
-                  width: 42, height: 42, borderRadius: "50%",
+                  width: 44, height: 44, borderRadius: "50%",
                   background: "linear-gradient(135deg, #6366f1, #a855f7)",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "16px", fontWeight: 700, color: "#fff", flexShrink: 0,
+                  fontSize: "17px", fontWeight: 700, color: "#fff", flexShrink: 0,
+                  boxShadow: "0 4px 14px rgba(99,102,241,0.25)",
                 }}>
                   {blog.author?.charAt(0).toUpperCase()}
                 </div>
-                <div>
-                  <p style={{ color: "#fff", fontSize: "14px", fontWeight: 600, margin: 0 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <p style={{ color: "#fff", fontSize: "14px", fontWeight: 600, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {blog.author}
                   </p>
-                  <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", margin: 0 }}>
-                    Society Member
+                  <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px", margin: "2px 0 0" }}>
+                    {blog.author_role || "Student"}
                   </p>
                 </div>
               </div>
+
+              {blog.author_email && (
+                <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <a
+                    href={`mailto:${blog.author_email}`}
+                    title={`Contact ${blog.author} (${blog.author_email})`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "8px 12px",
+                      borderRadius: "10px",
+                      background: "rgba(99,102,241,0.08)",
+                      border: "1px solid rgba(99,102,241,0.25)",
+                      color: "#a5b4fc",
+                      textDecoration: "none",
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      transition: "all 0.2s ease",
+                      overflow: "hidden",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(99,102,241,0.2)";
+                      e.currentTarget.style.borderColor = "rgba(99,102,241,0.45)";
+                      e.currentTarget.style.color = "#c7d2fe";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "rgba(99,102,241,0.08)";
+                      e.currentTarget.style.borderColor = "rgba(99,102,241,0.25)";
+                      e.currentTarget.style.color = "#a5b4fc";
+                    }}
+                  >
+                    <Mail size={14} style={{ flexShrink: 0 }} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {blog.author_email}
+                    </span>
+                  </a>
+                </div>
+              )}
             </div>
 
             {/* Share card */}
@@ -663,9 +648,9 @@ export default function BlogDetailPage() {
           }}>
             {moreBlogs.map(b => (
               <RelatedCard
-                key={b.id}
+                key={b._id || b.id}
                 blog={b}
-                onClick={() => navigate(`/blog/${b.id}`)}
+                onClick={() => navigate(`/blog/${b._id || b.id}`)}
               />
             ))}
           </div>

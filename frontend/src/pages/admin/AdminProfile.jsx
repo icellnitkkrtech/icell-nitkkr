@@ -14,12 +14,15 @@ import {
   Shield,
   BarChart3,
 } from "lucide-react";
+import UserBlogsSection from "../../components/profile/UserBlogsSection";
 
 export default function AdminProfile() {
   const navigate = useNavigate();
   const { user, logout, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState(null);
   const [adminStats, setAdminStats] = useState(null);
+  const [certificates, setCertificates] = useState([]);
+  const [certLoading, setCertLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -42,7 +45,23 @@ export default function AdminProfile() {
       try {
         // Fetch admin profile
         const profileResponse = await api.get("/auth/profile");
-        setProfile(profileResponse.data);
+        const profileData = profileResponse.data;
+        setProfile(profileData);
+
+        // If post holder, fetch their personal certificates
+        if (profileData?.role === "post_holder" || user?.role === "post_holder") {
+          try {
+            const certRes = await api.get("/certificate/user/all");
+            if (certRes.data && certRes.data.certificates) {
+              setCertificates(certRes.data.certificates);
+            } else {
+              setCertificates([]);
+            }
+          } catch (cErr) {
+            console.warn("Could not fetch certificates for post holder:", cErr);
+            setCertificates([]);
+          }
+        }
 
         // Fetch admin statistics
         try {
@@ -83,6 +102,51 @@ export default function AdminProfile() {
     navigate("/login");
   };
 
+  const downloadCertificate = async (cert) => {
+    setCertLoading(true);
+    try {
+      const endpoint = `/certificate/download/${cert._id}`;
+      const safeTitle = (cert.title || "certificate").replace(/[^a-z0-9_-]+/gi, "-").toLowerCase();
+      const filename = `${safeTitle}-${cert._id}.png`;
+
+      const response = await api.get(endpoint, {
+        responseType: "arraybuffer",
+      });
+
+      const blob = new Blob([response.data], { type: "image/png" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Download error:", err);
+      alert("Failed to download certificate: " + (err.response?.data?.error || err.message));
+    } finally {
+      setCertLoading(false);
+    }
+  };
+
+  const previewCertificate = async (cert) => {
+    try {
+      const endpoint = `/certificate/download/${cert._id}?preview=true`;
+      const response = await api.get(endpoint, {
+        responseType: "blob",
+      });
+      const blobUrl = URL.createObjectURL(response.data);
+      const previewWindow = window.open(blobUrl, "_blank");
+      if (!previewWindow) {
+        alert("Please allow popups to preview your certificate.");
+      }
+    } catch (err) {
+      console.error("Preview error:", err);
+      alert("Failed to preview certificate: " + (err.response?.data?.error || err.message));
+    }
+  };
+
   if (!user) return null;
 
   return (
@@ -97,9 +161,13 @@ export default function AdminProfile() {
         <div className="p-8 max-md:pt-20">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-2">Admin Profile</h1>
+            <h1 className="text-3xl font-bold mb-2">
+              {profile?.role === "post_holder" ? "Post Holder Profile" : "Admin Profile"}
+            </h1>
             <p className="text-[#555]">
-              Your admin account & management overview
+              {profile?.role === "post_holder"
+                ? "Your post holder account, certificates & management overview"
+                : "Your admin account & management overview"}
             </p>
           </div>
 
@@ -125,9 +193,11 @@ export default function AdminProfile() {
                       <Shield size={40} className="text-white" />
                     </div>
                     <h2 className="text-xl font-bold mb-1">
-                      {profile?.name || "Admin"}
+                      {profile?.name || (profile?.role === "post_holder" ? "Post Holder" : "Admin")}
                     </h2>
-                    <p className="text-[#555] text-sm">Administrator</p>
+                    <p className="text-[#555] text-sm">
+                      {profile?.role === "post_holder" ? "Post Holder" : "Administrator"}
+                    </p>
                   </div>
 
                   <div
@@ -164,7 +234,9 @@ export default function AdminProfile() {
                   >
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-green-500" />
-                      <span className="text-xs text-[#999]">Active Admin</span>
+                      <span className="text-xs text-[#999]">
+                        {profile?.role === "post_holder" ? "Active Post Holder" : "Active Admin"}
+                      </span>
                     </div>
                     <p className="text-xs text-[#555] mt-2">
                       Joined{" "}
@@ -335,6 +407,97 @@ export default function AdminProfile() {
                     </div>
                   </div>
                 </div>
+
+                {/* Certificates Section for Post Holder only */}
+                {(profile?.role === "post_holder" || user?.role === "post_holder") && (
+                  <div
+                    className="rounded-xl border p-6 w-full"
+                    style={{ background: "#111111", borderColor: "#1f1f1f" }}
+                  >
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-lg font-bold flex items-center gap-3">
+                        <div
+                          className="p-2 rounded-lg"
+                          style={{ background: "#f59e0b18" }}
+                        >
+                          <Award size={18} style={{ color: "#f59e0b" }} />
+                        </div>
+                        My Certificates
+                      </h3>
+                      {certificates && certificates.length > 0 && (
+                        <span className="text-xs px-2.5 py-1 rounded-full bg-[#f59e0b18] text-[#fbbf24] font-medium border border-[#f59e0b30]">
+                          {certificates.length} {certificates.length === 1 ? "Certificate" : "Certificates"}
+                        </span>
+                      )}
+                    </div>
+
+                    {certificates && certificates.length > 0 ? (
+                      <div className="space-y-3">
+                        {certificates.map((cert) => (
+                          <div
+                            key={cert._id}
+                            className="rounded-lg p-4 border border-[#2a2a2a] bg-[#0d0d0d] transition-colors hover:border-[#fbbf24]/50"
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <span className="text-xl">🏅</span>
+                                  <h4 className="font-bold text-white text-base">
+                                    {cert.title || "Certificate"}
+                                  </h4>
+                                </div>
+
+                                <div className="flex gap-2 flex-wrap items-center text-xs">
+                                  <span className="px-2 py-0.5 rounded-md bg-[#10b98115] text-[#34d399] font-medium">
+                                    ✓ Issued
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-md bg-[#1f1f1f] text-[#999]">
+                                    {new Date(cert.issued_date).toLocaleDateString("en-US", {
+                                      year: "numeric",
+                                      month: "short",
+                                      day: "numeric",
+                                    })}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => previewCertificate(cert)}
+                                  className="px-3 py-2 rounded-lg text-xs font-semibold border border-[#333] text-[#ccc] hover:bg-[#1a1a1a] hover:text-white transition-colors"
+                                  title="Preview certificate in new tab"
+                                >
+                                  👁️ Preview
+                                </button>
+                                <button
+                                  onClick={() => downloadCertificate(cert)}
+                                  disabled={certLoading}
+                                  className="px-3 py-2 rounded-lg text-xs font-semibold bg-[#fbbf24] text-black hover:bg-[#f59e0b] transition-colors disabled:opacity-50"
+                                  title="Download certificate PNG"
+                                >
+                                  ⬇️ Download PNG
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <Award size={32} className="mx-auto mb-2 text-[#555]" />
+                        <p className="text-[#555] text-sm mb-2">
+                          No certificates issued yet.
+                        </p>
+                        <p className="text-[#555] text-xs text-[#666]">
+                          Certificates issued for your role or event participation will appear here.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* My Articles Section (Reusable for Post Holder & Admin) */}
+                <UserBlogsSection userId={user?.id || user?._id || user?.userId} />
 
                 {/* Logout Button */}
                 <button

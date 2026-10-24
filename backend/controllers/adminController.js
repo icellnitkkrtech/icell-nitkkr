@@ -27,17 +27,23 @@ export async function getStats(req, res) {
       totalPhotos,
       totalNewsletters,
     ] = await Promise.all([
-      // Total Users = any user with role student or member
+      // Total Users = any user with role student, member, or post holder
       db.collection("profiles").countDocuments({
-        role: { $in: ["student", "member"] },
+        $or: [
+          { role: { $in: ["student", "member", "post_holder"] } },
+          { post_position: { $ne: null, $exists: true } },
+        ],
       }),
       // Total Students = role="student"
       db.collection("profiles").countDocuments({ role: "student" }),
       // Total Members = role="member"
       db.collection("profiles").countDocuments({ role: "member" }),
-      // Total Post Holders = users with post_position set (not null/undefined)
+      // Total Post Holders = users with role "post_holder" or post_position set
       db.collection("profiles").countDocuments({
-        post_position: { $ne: null, $exists: true },
+        $or: [
+          { role: "post_holder" },
+          { post_position: { $ne: null, $exists: true } },
+        ],
       }),
       // Unverified Users = email_verified=false (any role)
       db.collection("profiles").countDocuments({ email_verified: false }),
@@ -79,7 +85,8 @@ export async function getAllMembers(req, res) {
 
     const members = await profiles
       .find({ is_member: true })
-      .sort({ created_at: -1 })
+      .collation({ locale: "en", strength: 2 })
+      .sort({ name: 1 })
       .toArray();
 
     res.json(members);

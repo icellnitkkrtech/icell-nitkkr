@@ -18,6 +18,8 @@ import galleryGroupRoutes from "./routes/galleryGroupRoutes.js";
 import eventAttendanceRoutes from "./routes/eventAttendanceRoutes.js";
 import newsletterRoutes from "./routes/newsletterRoutes.js";
 import certificateRoutes from "./routes/certificateRoutes.js";
+import certificateTemplateRoutes from "./routes/certificateTemplateRoutes.js";
+import dynamicCertificateRoutes from "./routes/dynamicCertificateRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 
 const app = express();
@@ -27,12 +29,12 @@ const PORT = process.env.PORT || 5000;
 async function startServer() {
   try {
     await connectDB();
-    console.log("✅ Connected to MongoDB");
+    console.log("Connected to MongoDB");
 
     // Start background cleanup job for expired unverified student accounts
     startCleanupJob();
   } catch (error) {
-    console.error("❌ Failed to connect to MongoDB:", error);
+    console.error("Failed to connect to MongoDB:", error);
     process.exit(1);
   }
 
@@ -75,6 +77,8 @@ async function startServer() {
   app.use("/api/gallery-groups", galleryGroupRoutes);
   app.use("/api/newsletters", newsletterRoutes);
   app.use("/api/certificate", certificateRoutes);
+  app.use("/api/certificate-templates", certificateTemplateRoutes);
+  app.use("/api/dynamic-certificates", dynamicCertificateRoutes);
   app.use("/api/admin", adminRoutes);
 
   // ── 404 ───────────────────────────────────────────────────────────────────────
@@ -91,7 +95,7 @@ async function startServer() {
   });
 
   const server = app.listen(PORT, () => {
-    console.log(`✅ Backend running on http://localhost:${PORT}`);
+    console.log(`Backend running on http://localhost:${PORT}`);
   });
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────────

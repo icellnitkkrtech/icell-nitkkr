@@ -120,7 +120,7 @@ export default function AdminDashboard() {
               Dashboard
             </h1>
             <p className="text-[#555] text-xs sm:text-sm">
-              Welcome back, {user?.email || "Admin"}! Here's what's happening.
+              Welcome back, {user?.email}! Here's what's happening.
             </p>
           </div>
 
@@ -296,7 +296,7 @@ export default function AdminDashboard() {
                 <div className="flex justify-between items-center">
                   <span className="text-[#888]">Last Updated:</span>
                   <span className="text-white">
-                    {new Date().toLocaleDateString()}
+                    {new Date(stats?.timestamp || Date.now()).toLocaleDateString("en-GB")}
                   </span>
                 </div>
               </div>

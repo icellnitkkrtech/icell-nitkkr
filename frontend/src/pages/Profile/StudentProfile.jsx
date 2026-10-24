@@ -14,6 +14,7 @@ import {
   BarChart3,
   Download,
 } from "lucide-react";
+import UserBlogsSection from "../../components/profile/UserBlogsSection";
 
 export default function StudentProfile() {
   const navigate = useNavigate();
@@ -58,13 +59,9 @@ export default function StudentProfile() {
           const attendanceResponse = await api.get("/auth/attendance");
           const attendanceData = attendanceResponse.data || [];
 
-          // Only count events where attendance was actually marked
-          // Filter to include only present, absent, or leave status
+          // Only count events where attendance was actually marked (present or absent)
           const markedEvents = attendanceData.filter(
-            (d) =>
-              d.status === "present" ||
-              d.status === "absent" ||
-              d.status === "leave"
+            (d) => d.status === "present" || d.status === "absent"
           );
 
           const total = markedEvents.length;
@@ -123,36 +120,15 @@ export default function StudentProfile() {
   const downloadCertificate = async (cert) => {
     setMemberCertLoading(true);
     try {
-      let endpoint = "";
-      let filename = "";
-
-      if (cert.certificate_type === "member") {
-        endpoint = "/certificate/member/download";
-        filename = `icell-member-certificate-${profile?.name?.replace(
-          /\s+/g,
-          "-"
-        )}.svg`;
-      } else if (cert.certificate_type === "post_holder") {
-        endpoint = "/certificate/postholder/download";
-        filename = `icell-post-holder-certificate-${profile?.name?.replace(
-          /\s+/g,
-          "-"
-        )}.svg`;
-      } else if (cert.certificate_type === "event") {
-        endpoint = `/certificate/event/download/${cert._id}`;
-        filename = `icell-achievement-certificate-${profile?.name?.replace(
-          /\s+/g,
-          "-"
-        )}.svg`;
-      }
-
-      if (!endpoint) return;
+      const endpoint = `/certificate/download/${cert._id}`;
+      const safeTitle = (cert.title || "certificate").replace(/[^a-z0-9_-]+/gi, "-").toLowerCase();
+      const filename = `${safeTitle}-${cert._id}.png`;
 
       const response = await api.get(endpoint, {
         responseType: "arraybuffer",
       });
 
-      const blob = new Blob([response.data], { type: "image/svg+xml" });
+      const blob = new Blob([response.data], { type: "image/png" });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -163,7 +139,7 @@ export default function StudentProfile() {
       document.body.removeChild(link);
     } catch (err) {
       console.error("Download error:", err);
-      alert("Failed to download certificate: " + err.message);
+      alert("Failed to download certificate: " + (err.response?.data?.error || err.message));
     } finally {
       setMemberCertLoading(false);
     }
@@ -171,25 +147,18 @@ export default function StudentProfile() {
 
   const previewCertificate = async (cert) => {
     try {
-      let endpoint = "";
-
-      if (cert.certificate_type === "member") {
-        endpoint = "/certificate/member/download";
-      } else if (cert.certificate_type === "post_holder") {
-        endpoint = "/certificate/postholder/download";
-      } else if (cert.certificate_type === "event") {
-        endpoint = `/certificate/preview/${cert._id}`;
+      const endpoint = `/certificate/download/${cert._id}?preview=true`;
+      const response = await api.get(endpoint, {
+        responseType: "blob",
+      });
+      const blobUrl = URL.createObjectURL(response.data);
+      const previewWindow = window.open(blobUrl, "_blank");
+      if (!previewWindow) {
+        alert("Please allow popups to preview your certificate.");
       }
-
-      if (!endpoint) return;
-
-      const response = await api.get(endpoint);
-      const htmlWindow = window.open();
-      htmlWindow.document.write(response.data);
-      htmlWindow.document.close();
     } catch (err) {
       console.error("Preview error:", err);
-      alert("Failed to preview certificate: " + err.message);
+      alert("Failed to preview certificate: " + (err.response?.data?.error || err.message));
     }
   };
 
@@ -399,175 +368,55 @@ export default function StudentProfile() {
               </div>
 
               {certificates && certificates.length > 0 ? (
-                <div>
-                  {/* Certificate Statistics */}
-                  <div className="grid grid-cols-3 gap-3 mb-6">
+                <div className="space-y-3">
+                  {certificates.map((cert) => (
                     <div
-                      className="rounded-lg p-3 text-center"
-                      style={{ background: "#0d0d0d" }}
+                      key={cert._id}
+                      className="rounded-lg p-4 border border-[#2a2a2a] bg-[#0d0d0d] transition-colors hover:border-[#fbbf24]/50"
                     >
-                      <p className="text-[#555] text-xs mb-1">Member</p>
-                      <p className="text-lg font-bold text-[#fbbf24]">
-                        {
-                          certificates.filter(
-                            (c) => c.certificate_type === "member"
-                          ).length
-                        }
-                      </p>
-                    </div>
-                    <div
-                      className="rounded-lg p-3 text-center"
-                      style={{ background: "#0d0d0d" }}
-                    >
-                      <p className="text-[#555] text-xs mb-1">Post Holder</p>
-                      <p className="text-lg font-bold text-[#e94560]">
-                        {
-                          certificates.filter(
-                            (c) => c.certificate_type === "post_holder"
-                          ).length
-                        }
-                      </p>
-                    </div>
-                    <div
-                      className="rounded-lg p-3 text-center"
-                      style={{ background: "#0d0d0d" }}
-                    >
-                      <p className="text-[#555] text-xs mb-1">Achievements</p>
-                      <p className="text-lg font-bold text-[#06b6d4]">
-                        {
-                          certificates.filter(
-                            (c) => c.certificate_type === "event"
-                          ).length
-                        }
-                      </p>
-                    </div>
-                  </div>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-xl">🏅</span>
+                            <h4 className="font-bold text-white text-base">
+                              {cert.title || "Certificate"}
+                            </h4>
+                          </div>
 
-                  {/* Certificates List */}
-                  <div className="space-y-3">
-                    {certificates.map((cert) => {
-                      let borderColor = "#1f1f1f";
-                      let badgeColor = "#666";
-                      let badgeBg = "#66666610";
-                      let icon = "📜";
-
-                      if (cert.certificate_type === "member") {
-                        borderColor = "#fbbf24";
-                        badgeColor = "#fbbf24";
-                        badgeBg = "#fbbf2415";
-                        icon = "🎖️";
-                      } else if (cert.certificate_type === "post_holder") {
-                        borderColor = "#e94560";
-                        badgeColor = "#e94560";
-                        badgeBg = "#e9456015";
-                        icon = "👑";
-                      } else if (cert.certificate_type === "event") {
-                        borderColor = "#06b6d4";
-                        badgeColor = "#06b6d4";
-                        badgeBg = "#06b6d415";
-                        icon = "⭐";
-                      }
-
-                      return (
-                        <div
-                          key={cert._id}
-                          className="rounded-lg p-4 border"
-                          style={{
-                            background: "#0d0d0d",
-                            borderColor: borderColor,
-                          }}
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xl">{icon}</span>
-                                <h4 className="font-bold text-white">
-                                  {cert.certificate_type === "member"
-                                    ? "Member Certificate"
-                                    : cert.certificate_type === "post_holder"
-                                    ? "Post Holder Certificate"
-                                    : "Achievement Certificate"}
-                                </h4>
-                              </div>
-
-                              {cert.certificate_type === "event" &&
-                                cert.metadata?.achievement && (
-                                  <p className="text-[#999] text-sm mb-2">
-                                    For:{" "}
-                                    <strong>{cert.metadata.achievement}</strong>
-                                  </p>
-                                )}
-
-                              {cert.certificate_type === "post_holder" &&
-                                cert.metadata?.post_position && (
-                                  <p className="text-[#999] text-sm mb-2">
-                                    Position:{" "}
-                                    <strong>
-                                      {cert.metadata.post_position}
-                                    </strong>
-                                  </p>
-                                )}
-
-                              <div className="flex gap-2 flex-wrap">
-                                <span
-                                  className="text-xs px-2 py-1 rounded-md"
-                                  style={{
-                                    background: badgeBg,
-                                    color: badgeColor,
-                                  }}
-                                >
-                                  ✓ Issued
-                                </span>
-                                <span
-                                  className="text-xs px-2 py-1 rounded-md"
-                                  style={{
-                                    background: "#66666610",
-                                    color: "#999",
-                                  }}
-                                >
-                                  {new Date(
-                                    cert.issued_date
-                                  ).toLocaleDateString("en-US", {
-                                    year: "numeric",
-                                    month: "short",
-                                    day: "numeric",
-                                  })}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="flex flex-col gap-2">
-                              <button
-                                onClick={() => previewCertificate(cert)}
-                                className="px-3 py-2 rounded-lg text-white text-sm font-medium transition-all whitespace-nowrap"
-                                style={{
-                                  background: "#66666615",
-                                  color: "#999",
-                                }}
-                                title="Preview certificate"
-                              >
-                                👁️ Preview
-                              </button>
-                              <button
-                                onClick={() => downloadCertificate(cert)}
-                                className="px-3 py-2 rounded-lg text-white text-sm font-medium transition-all whitespace-nowrap"
-                                style={{
-                                  background: `linear-gradient(135deg, ${borderColor} 0%, ${borderColor}dd 100%)`,
-                                  color:
-                                    borderColor === "#fbbf24"
-                                      ? "#000000"
-                                      : "#ffffff",
-                                }}
-                                title={`Download ${cert.certificate_type} certificate`}
-                              >
-                                ⬇️ Download
-                              </button>
-                            </div>
+                          <div className="flex gap-2 flex-wrap items-center text-xs">
+                            <span className="px-2 py-0.5 rounded-md bg-[#10b98115] text-[#34d399] font-medium">
+                              ✓ Issued
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md bg-[#1f1f1f] text-[#999]">
+                              {new Date(cert.issued_date).toLocaleDateString("en-US", {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </span>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => previewCertificate(cert)}
+                            className="px-3 py-2 rounded-lg text-xs font-semibold border border-[#333] text-[#ccc] hover:bg-[#1a1a1a] hover:text-white transition-colors"
+                            title="Preview certificate in new tab"
+                          >
+                            👁️ Preview
+                          </button>
+                          <button
+                            onClick={() => downloadCertificate(cert)}
+                            disabled={memberCertLoading}
+                            className="px-3 py-2 rounded-lg text-xs font-semibold bg-[#fbbf24] text-black hover:bg-[#f59e0b] transition-colors disabled:opacity-50"
+                            title="Download certificate PNG"
+                          >
+                            ⬇️ Download PNG
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="text-center py-8">
@@ -748,6 +597,9 @@ export default function StudentProfile() {
                 </div>
               </div>
             </div>
+
+            {/* My Blogs Section */}
+            <UserBlogsSection userId={user?.id || user?._id || user?.userId} />
           </div>
         </div>
 

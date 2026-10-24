@@ -3,7 +3,7 @@
     "id": "7g4c1daa-3e77-4f85-d7f5-ayush007",
     "name": "Ayush Bansal",
     "position": "",
-    "image": "https://i.ibb.co/XfBgZsgV/Screenshot-2026-03-28-235108.png",
+    "image": "https://i.ibb.co/SX59c7ws/IMG-20260829-155954-AYUSH-BANSAL.jpg",
     "linkedin": "https://www.linkedin.com/in/ayushbansal0520/",
     "instagram": "https://www.instagram.com/ayusshhh05",
     "github": "https://github.com/Ayush05dev"
@@ -45,15 +45,6 @@
     "github": "https://github.com/Divy-Prakash-Singh"
   },
   {
-    "id": "2a7b8d11-9c44-4f51-a2b1-shivam002",
-    "name": "Shivam Yadav",
-    "position": "",
-    "image": "https://i.ibb.co/23b3pMYd/photo.jpg",
-    "linkedin": "https://www.linkedin.com/in/shivam-yadav-7d11m2005y/",
-    "instagram": "https://www.instagram.com/__shivam.yadav__/",
-    "github": "https://github.com/Shivamyadav-11"
-  },
-  {
     "id": "2a7b8q11-9c44-4f81-a2b1-mukul009",
     "name": "Mukul",
     "position": "",
@@ -66,10 +57,19 @@
     "id": "3c9d2e44-5a21-4e3a-b1a3-abhinav003",
     "name": "Abhinav Nautiyal",
     "position": "",
-    "image": "https://i.ibb.co/hRw750fs/Whats-App-Image-2026-03-28-at-2-00-00-PM.jpg",
+    "image": "https://i.ibb.co/zTMspJYr/IMG-20260411-145858-720-jpg.jpg",
     "linkedin": "https://www.linkedin.com/in/abhinav-nautiyal-89bb92328/",
     "instagram": "https://www.instagram.com/abhi_07906",
     "github": "https://github.com/ABHINAVNAUTIYAL079"
+  },
+   {
+    "id": "2a7b8d11-9c44-4f51-a2b1-shivam002",
+    "name": "Shivam Yadav",
+    "position": "",
+    "image": "https://i.ibb.co/23b3pMYd/photo.jpg",
+    "linkedin": "https://www.linkedin.com/in/shivam-yadav-7d11m2005y/",
+    "instagram": "https://www.instagram.com/__shivam.yadav__/",
+    "github": "https://github.com/Shivamyadav-11"
   }
  
  

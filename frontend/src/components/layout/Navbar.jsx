@@ -11,6 +11,7 @@ import {
   X,
   Newspaper,
   Code,
+  Images,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -46,6 +47,7 @@ export default function Navbar() {
     { name: "Home", icon: Home, path: "/" },
     { name: "Blogs", icon: FileText, path: "/blogs" },
     { name: "Events", icon: CalendarDays, path: "/events" },
+    { name: "Gallery", icon: Images, path: "/gallery" },
     { name: "Newsletter", icon: Newspaper, path: "/newsletter" },
     { name: "Team", icon: Users, path: "/team" },
     { name: "Developers", icon: Code, path: "/developer" },

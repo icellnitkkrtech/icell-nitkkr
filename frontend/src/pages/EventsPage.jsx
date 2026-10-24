@@ -235,16 +235,16 @@ function PastEventCard({ event, index, onOpen }) {
       </div>
 
       <div className="flex flex-col flex-1 p-4 sm:p-7">
-        <h3 className="text-2xl sm:text-3xl font-bold text-white mb-2 sm:mb-3">
+        <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 sm:mb-3 line-clamp-1">
           {event.title}
         </h3>
-        <p className="text-white/60 text-xs sm:text-sm leading-relaxed flex-1">
+        <p className="text-white/60 text-xs sm:text-sm leading-relaxed line-clamp-3 mb-4">
           {event.description}
         </p>
 
-        <div className="mt-4 sm:mt-6 flex items-center justify-between gap-2">
+        <div className="mt-auto pt-2 flex items-center justify-between gap-2">
           <motion.div
-            className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-white/40"
+            className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-white/40 group-hover:text-white transition-colors"
             whileHover={{ x: 4 }}
             transition={{ type: "spring", stiffness: 400 }}
           >
@@ -292,21 +292,21 @@ function EventCard({ event, index, onOpen }) {
       </div>
 
       <div className="flex flex-col flex-1 p-4 sm:p-7">
-        <h3 className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">
+        <h3 className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2 line-clamp-1">
           {event.title}
         </h3>
         <p
-          className={`text-xs sm:text-sm mb-2 sm:mb-3 ${
+          className={`text-xs sm:text-sm mb-2 sm:mb-3 line-clamp-1 ${
             isYellow ? "text-yellow-400/70" : "text-purple-400/70"
           }`}
         >
           {event.subtitle}
         </p>
-        <p className="text-white/60 text-xs sm:text-sm leading-relaxed flex-1">
+        <p className="text-white/60 text-xs sm:text-sm leading-relaxed line-clamp-3 mb-4">
           {event.description}
         </p>
 
-        <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-4 sm:mt-6">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-auto">
           {event.highlights.slice(0, 2).map((h) => (
             <div
               key={h.label}
@@ -464,11 +464,11 @@ export default function EventsPage() {
       setEvents(normalizedEvents);
       setLastFetchTime(new Date());
 
-      console.log(`✅ Loaded ${normalizedEvents.length} events`);
+      console.log(` Loaded ${normalizedEvents.length} events`);
     } catch (err) {
       const errorMsg =
         err.response?.data?.error || err.message || "Failed to load events";
-      console.error("❌ Failed to load events:", errorMsg);
+      console.error(" Failed to load events:", errorMsg);
       setError(errorMsg);
       // Keep showing old events even if fetch fails
     } finally {

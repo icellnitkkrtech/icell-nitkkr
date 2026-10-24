@@ -177,11 +177,11 @@ const sampleBlogs = [
 
 async function seedBlogs() {
   try {
-    console.log("🌱 Blog Seed Started...\n");
+    console.log(" Blog Seed Started...\n");
 
     // Connect to MongoDB using your existing config
     await connectDB();
-    console.log("✅ Connected to MongoDB");
+    console.log("  Connected to MongoDB");
 
     const db = getDB();
     const blogsCollection = db.collection("blogs");
@@ -189,25 +189,25 @@ async function seedBlogs() {
     // Check if there are already blogs to prevent accidental duplicates
     const existingCount = await blogsCollection.countDocuments();
     if (existingCount > 0) {
-      console.log(`⚠️  Found ${existingCount} existing blogs.`);
+      console.log(`  Found ${existingCount} existing blogs.`);
       console.log(
         "If you want to clear them first, uncomment the deleteMany line in this script.\n"
       );
       // await blogsCollection.deleteMany({}); // Uncomment to clear existing blogs
     }
 
-    console.log(`📝 Inserting ${sampleBlogs.length} sample blogs...`);
+    console.log(` Inserting ${sampleBlogs.length} sample blogs...`);
     const result = await blogsCollection.insertMany(sampleBlogs);
 
     console.log(
-      `\n✅ Success! Inserted ${result.insertedCount} blogs into the database.`
+      `\n Success! Inserted ${result.insertedCount} blogs into the database.`
     );
-    console.log("📌 You can now view these on your frontend blog page!\n");
+    console.log(" You can now view these on your frontend blog page!\n");
 
     await closeDB();
     process.exit(0);
   } catch (error) {
-    console.error("\n❌ Error during blog seeding:", error.message);
+    console.error("\n Error during blog seeding:", error.message);
     process.exit(1);
   }
 }

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import Home from "./pages/home";
 import EventsPage from "./pages/EventsPage";
+import GalleryPage from "./pages/GalleryPage";
 import NewsletterPage from "./pages/NewsletterPage";
 import Navbar from "./components/layout/Navbar";
 import Footer from "./components/layout/Footer";
@@ -16,6 +17,8 @@ import AdminGallery from "./pages/admin/AdminGallery";
 import AdminStudents from "./pages/admin/AdminStudents";
 import AdminAttendance from "./pages/admin/AdminAttendance";
 import AdminCertificates from "./pages/admin/AdminCertificates";
+import AdminCertificateTemplates from "./pages/admin/AdminCertificateTemplates";
+import DynamicCertificateGenerator from "./pages/admin/DynamicCertificateGenerator";
 import Login from "./pages/auth/login";
 import RegisterNew from "./pages/auth/register_new";
 import ForgotPassword from "./pages/auth/forgot_password";
@@ -124,6 +127,20 @@ export default function App() {
             }
           />
 
+          {/* Gallery Page */}
+          <Route
+            path="/gallery"
+            element={
+              <div className="min-h-screen flex flex-col bg-[#0d0d0d] text-white">
+                <div className="fixed top-6 w-full z-50 flex justify-center">
+                  <Navbar />
+                </div>
+
+                <GalleryPage />
+              </div>
+            }
+          />
+
           {/* Newsletter Page */}
           <Route
             path="/newsletter"
@@ -223,6 +240,8 @@ export default function App() {
           <Route path="/admin/students" element={<AdminStudents />} />
           <Route path="/admin/attendance" element={<AdminAttendance />} />
           <Route path="/admin/certificates" element={<AdminCertificates />} />
+          <Route path="/admin/certificate-templates" element={<AdminCertificateTemplates />} />
+          <Route path="/admin/certificates/generate" element={<DynamicCertificateGenerator />} />
           <Route path="/admin/profile" element={<AdminProfile />} />
           <Route path="*" element={<div>404 Not Found</div>} />
         </Routes>

@@ -95,12 +95,12 @@ export async function createEvent(req, res) {
 // PATCH /api/events/:id — update event (admin)
 export async function updateEvent(req, res) {
   try {
-    console.log("📝 UPDATE EVENT REQUEST:");
-    console.log("  Event ID:", req.params.id);
-    console.log("  Fields received:", Object.keys(req.body));
-    console.log("  Registration Link:", req.body.registrationLink);
-    console.log("  Prize Pool:", req.body.prizePool);
-    console.log("  Long Description:", req.body.longDescription);
+    // console.log("  UPDATE EVENT REQUEST:");
+    // console.log("  Event ID:", req.params.id);
+    // console.log("  Fields received:", Object.keys(req.body));
+    // console.log("  Registration Link:", req.body.registrationLink);
+    // console.log("  Prize Pool:", req.body.prizePool);
+    // console.log("  Long Description:", req.body.longDescription);
 
     const updated = await eventModel.updateEvent(req.params.id, req.body);
     if (!updated) {
@@ -109,10 +109,10 @@ export async function updateEvent(req, res) {
     // Return the updated event
     const event = await eventModel.getEventById(req.params.id);
 
-    console.log("✅ EVENT UPDATED");
-    console.log("  Stored registration_link:", event.registration_link);
-    console.log("  Stored prize_pool:", event.prize_pool);
-    console.log("  Stored long_description:", event.long_description);
+    // console.log("  EVENT UPDATED");
+    // console.log("  Stored registration_link:", event.registration_link);
+    // console.log("  Stored prize_pool:", event.prize_pool);
+    // console.log("  Stored long_description:", event.long_description);
 
     res.json(event);
   } catch (error) {
@@ -149,7 +149,7 @@ export async function markAttendance(req, res) {
         .json({ error: "Student ID and status are required" });
     }
 
-    if (!["present", "absent", "leave"].includes(status)) {
+    if (!["present", "absent"].includes(status)) {
       return res.status(400).json({ error: "Invalid status value" });
     }
 

@@ -14,16 +14,16 @@ import * as authModel from "../models/authModel.js";
 
 async function setupAdmin() {
   try {
-    console.log("🔧 Admin Setup Started...\n");
+    console.log("  Admin Setup Started...\n");
 
     // Connect to MongoDB
     await connectDB();
-    console.log("✅ Connected to MongoDB");
+    console.log("  Connected to MongoDB");
 
     // Check if admin already exists
     const adminExists = await authModel.checkAdminExists();
     if (adminExists) {
-      console.log("❌ Admin already exists in the database.");
+      console.log("  Admin already exists in the database.");
       console.log(
         "To create a new admin, delete the existing admin from database first.\n"
       );
@@ -36,14 +36,14 @@ async function setupAdmin() {
     const password = "12345678";
     const name = "Admin";
 
-    console.log(`\n📝 Creating admin account:`);
+    console.log(`\n  Creating admin account:`);
     console.log(`   Email: ${email}`);
     console.log(`   Password: ${password}`);
     console.log(`   Name: ${name}\n`);
 
     const admin = await authModel.createAdmin(email, password, name);
 
-    console.log("✅ Admin account created successfully!\n");
+    console.log("  Admin account created successfully!\n");
     console.log("Admin Details:");
     console.log(`   ID: ${admin.id}`);
     console.log(`   Email: ${admin.email}`);
@@ -51,12 +51,12 @@ async function setupAdmin() {
     console.log(
       "\n📌 You can now login with these credentials at /admin/login"
     );
-    console.log("⚠️  Change the password after first login for security!\n");
+    console.log("  Change the password after first login for security!\n");
 
     await closeDB();
     process.exit(0);
   } catch (error) {
-    console.error("❌ Error during admin setup:", error.message);
+    console.error("  Error during admin setup:", error.message);
     process.exit(1);
   }
 }

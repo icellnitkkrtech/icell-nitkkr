@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Trash2, Plus, AlertCircle, X, Upload } from "lucide-react";
 import AdminSidebar from "../../components/admin/AdminSidebar";
+import { getOptimizedCloudinaryUrl, CLOUDINARY_PRESETS } from "../../utils/cloudinary";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 const API = `${BASE_URL}/api/gallery-groups`;
@@ -421,8 +422,13 @@ export default function AdminGallery() {
                 <div className="relative h-48 bg-[#1a1a1a] overflow-hidden group">
                   {group.thumbnail_image ? (
                     <img
-                      src={group.thumbnail_image}
+                      src={getOptimizedCloudinaryUrl(
+                        group.thumbnail_image,
+                        CLOUDINARY_PRESETS.thumbnail
+                      )}
                       alt={group.group_name}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   ) : (
