@@ -269,39 +269,6 @@ export default function AdminDashboard() {
               </button>
             </div>
           </div>
-
-          {/* Recent Activity */}
-          <div className="mt-12">
-            <h2
-              className="text-xl font-bold text-white mb-4"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              System Info
-            </h2>
-            <div
-              className="p-6 rounded-lg border"
-              style={{ background: "#111111", borderColor: "#1f1f1f" }}
-            >
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-[#888]">Admin Email:</span>
-                  <span className="text-white">{user?.email}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-[#888]">User ID:</span>
-                  <span className="text-white text-sm font-mono">
-                    {user?._id}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-[#888]">Last Updated:</span>
-                  <span className="text-white">
-                    {new Date(stats?.timestamp || Date.now()).toLocaleDateString("en-GB")}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

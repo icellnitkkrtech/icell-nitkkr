@@ -7,7 +7,6 @@ import {
   Lightbulb,
   Users,
   Clock,
-  MapPin,
   ArrowRight,
   X,
   ChevronDown,
@@ -770,53 +769,7 @@ export default function EventsPage() {
         </div>
       </section>
 
-      {/* TIMELINE TEASER */}
-      <section className="px-4 sm:px-6 pb-20 sm:pb-28 md:pb-32">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="rounded-2xl sm:rounded-3xl border border-yellow-500/15 bg-gradient-to-br from-yellow-500/5 to-transparent p-6 sm:p-10 md:p-14 relative overflow-hidden"
-          >
-            <div className="absolute -top-20 -right-20 w-48 h-48 sm:w-64 sm:h-64 rounded-full bg-yellow-400/5 blur-3xl pointer-events-none" />
-            <div className="flex items-start gap-3 sm:gap-4 mb-6 sm:mb-8">
-              <span className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-yellow-500/15 border border-yellow-500/20 flex-shrink-0">
-                <MapPin size={18} className="sm:w-[20px] text-yellow-400" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-white/40 text-xs uppercase tracking-wider mb-1">
-                  Venue
-                </p>
-                <p className="text-white font-semibold text-sm sm:text-base break-words">
-                  NIT Kurukshetra — Main Campus, Haryana
-                </p>
-              </div>
-            </div>
-            <h3 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-3 sm:mb-4">
-              Season 2026 Kicks Off{" "}
-              <span className="text-yellow-400">Soon.</span>
-            </h3>
-            <p className="text-white/60 leading-relaxed max-w-2xl text-sm sm:text-base">
-              Mark your calendars. ICell's event season is about to begin.
-              Whether you're a finance wizard or a born strategist, there's a
-              stage for you. Stay tuned for exact dates and register before
-              slots fill up.
-            </p>
-            <motion.button
-              whileHover={{
-                scale: 1.02,
-                boxShadow: "0 0 25px rgba(250,204,21,0.2)",
-              }}
-              whileTap={{ scale: 0.97 }}
-              className="mt-6 sm:mt-8 inline-flex items-center gap-2 px-6 sm:px-7 py-2.5 sm:py-3.5 rounded-full bg-yellow-400 text-zinc-950 font-semibold text-xs sm:text-sm transition-all duration-300"
-            >
-              Get Notified <ArrowRight size={16} />
-            </motion.button>
-          </motion.div>
-        </div>
-      </section>
+
 
       {/* FAQ */}
       <section id="faq" className="px-4 sm:px-6 pb-20 sm:pb-28">
