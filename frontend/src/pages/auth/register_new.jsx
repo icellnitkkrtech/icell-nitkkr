@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Mail, Lock, User, Phone, BookOpen, GraduationCap } from "lucide-react";
+import { Mail, Lock, User, Phone, BookOpen, GraduationCap, Hash } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -9,6 +9,7 @@ export default function Register() {
   const { register, resendVerificationEmail } = useAuth();
   const [formData, setFormData] = useState({
     name: "",
+    roll_number: "",
     email: "",
     password: "",
     phone: "",
@@ -52,8 +53,16 @@ export default function Register() {
     return () => clearTimeout(timer);
   }, [resendCooldown]);
 
-  const handleChange = (e) =>
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => {
+      const updated = { ...prev, [name]: value };
+      if (name === "email" && value.includes("@nitkkr.ac.in") && !prev.roll_number) {
+        updated.roll_number = value.split("@")[0];
+      }
+      return updated;
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -73,7 +82,8 @@ export default function Register() {
         formData.name,
         formData.phone,
         formData.branch,
-        formData.year
+        formData.year,
+        formData.roll_number
       );
 
       if (result.success) {
@@ -295,7 +305,26 @@ export default function Register() {
                 value={formData.email}
                 onChange={handleChange}
                 className="w-full pl-9 pr-3 py-2 bg-[#0d0d0d] border border-[#1f1f1f] rounded-lg text-white placeholder-[#555] text-sm focus:outline-none focus:border-purple-500"
-                placeholder="your@email.com"
+                placeholder="your@nitkkr.ac.in"
+              />
+            </div>
+          </div>
+
+          {/* Roll Number */}
+          <div>
+            <label className="block text-xs font-medium text-white mb-1">
+              Roll Number
+            </label>
+            <div className="relative">
+              <Hash size={14} className="absolute left-3 top-3 text-[#555]" />
+              <input
+                name="roll_number"
+                type="text"
+                required
+                value={formData.roll_number}
+                onChange={handleChange}
+                className="w-full pl-9 pr-3 py-2 bg-[#0d0d0d] border border-[#1f1f1f] rounded-lg text-white placeholder-[#555] text-sm focus:outline-none focus:border-purple-500"
+                placeholder="e.g. 12112045"
               />
             </div>
           </div>

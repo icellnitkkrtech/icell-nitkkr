@@ -23,6 +23,7 @@ import Login from "./pages/auth/login";
 import RegisterNew from "./pages/auth/register_new";
 import ForgotPassword from "./pages/auth/forgot_password";
 import Profile from "./pages/Profile/Profile";
+import EditProfile from "./pages/Profile/EditProfile";
 import TeamPage from "./pages/TeamPage";
 import { AuthProvider } from "./context/AuthContext";
 import AdminProfile from "./pages/admin/AdminProfile";
@@ -193,6 +194,24 @@ export default function App() {
                 <Profile />
               </div>
             }
+          />
+
+          {/* Edit Profile */}
+          <Route
+            path="/profile/edit"
+            element={
+              <div className="min-h-screen flex flex-col bg-[#0d0d0d] text-white">
+                <div className="fixed top-6 w-full z-50 flex justify-center">
+                  <Navbar />
+                </div>
+
+                <EditProfile />
+              </div>
+            }
+          />
+          <Route
+            path="/edit-profile"
+            element={<Navigate to="/profile/edit" replace />}
           />
 
           {/* Legacy Profile Routes */}

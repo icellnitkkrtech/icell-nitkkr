@@ -10,8 +10,13 @@ import {
   LogOut,
   Award,
   Calendar,
-  BarChart3,
   Download,
+  Phone,
+  Copy,
+  Check,
+  AlertCircle,
+  Pencil,
+  LayoutDashboard,
 } from "lucide-react";
 import UserBlogsSection from "../../components/profile/UserBlogsSection";
 
@@ -28,6 +33,9 @@ export default function Profile() {
   const [downloadingCertId, setDownloadingCertId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [resendingEmail, setResendingEmail] = useState(false);
+  const [resendStatus, setResendStatus] = useState(null);
 
   useEffect(() => {
     // Wait for auth to finish loading before checking user
@@ -38,12 +46,6 @@ export default function Profile() {
 
     // Don't proceed if still waiting for auth
     if (authLoading) {
-      return;
-    }
-
-    // Redirect admins and post holders to admin profile
-    if (user.role === "admin" || user.role === "post_holder") {
-      navigate("/admin/profile");
       return;
     }
 
@@ -112,6 +114,37 @@ export default function Profile() {
   const handleLogout = () => {
     logout();
     navigate("/login");
+  };
+
+  const handleCopyEmail = () => {
+    if (!profile?.email) return;
+    navigator.clipboard.writeText(profile.email);
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2000);
+  };
+
+  const handleResendVerification = async () => {
+    if (!profile?.email) return;
+    setResendingEmail(true);
+    setResendStatus(null);
+    try {
+      const res = await api.post("/auth/resend-verification-email", {
+        email: profile.email,
+      });
+      setResendStatus({
+        type: "success",
+        message: res.data?.message || "Verification email sent! Check your inbox.",
+      });
+    } catch (err) {
+      setResendStatus({
+        type: "error",
+        message:
+          err.response?.data?.error ||
+          "Failed to resend verification email. Please try again later.",
+      });
+    } finally {
+      setResendingEmail(false);
+    }
   };
 
   const downloadCertificate = async (cert) => {
@@ -187,100 +220,211 @@ export default function Profile() {
 
   // Derive role dynamically from profile response or JWT token
   const userRole = (profile?.role || user?.role || "student").toLowerCase();
+  const isAdmin = userRole === "admin";
+  const isPostHolder = userRole === "post_holder";
   const isMember = userRole === "member";
+  const isVerified = profile?.email_verified === true;
 
   return (
     <div
-      className="min-h-screen pt-20 pb-10 bg-[#0d0d0d] text-white"
+      className="min-h-screen pt-20 pb-16 bg-[#0d0d0d] text-white"
       style={{ fontFamily: "'Space Grotesk', sans-serif" }}
     >
       <div className="max-w-6xl mx-auto px-4">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Profile</h1>
-          <p className="text-[#555]">Your account & activity overview</p>
+        {/* Header with Relocated Sign Out Button & Admin Dashboard Shortcut */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-3xl font-bold mb-1 tracking-tight">Profile</h1>
+            <p className="text-[#666] text-sm">Your account & activity overview</p>
+          </div>
+          <div className="flex items-center gap-2.5 self-start sm:self-auto">
+            {(isAdmin || isPostHolder) && (
+              <button
+                onClick={() => navigate("/admin/dashboard")}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/90 hover:text-white border border-white/10 transition-all text-xs font-medium cursor-pointer"
+              >
+                <LayoutDashboard size={15} className="text-purple-400" />
+                Admin Dashboard
+              </button>
+            )}
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 font-medium border text-xs cursor-pointer"
+              style={{
+                background: "#ef444415",
+                borderColor: "#ef444430",
+                color: "#f87171",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#ef444425";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#ef444415";
+              }}
+            >
+              <LogOut size={15} />
+              Sign Out
+            </button>
+          </div>
         </div>
+
+        {/* Unverified Email Action Banner (Point 3 - not shown for admin) */}
+        {!isVerified && !isAdmin && (
+          <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm">
+            <div className="flex items-start sm:items-center gap-3">
+              <AlertCircle size={20} className="text-amber-400 shrink-0 mt-0.5 sm:mt-0" />
+              <div>
+                <p className="text-amber-200 font-medium">Your email is not verified</p>
+                <p className="text-amber-300/70 text-xs mt-0.5">
+                  Verify your @nitkkr.ac.in email address to access all student member privileges.
+                </p>
+                {resendStatus && (
+                  <p
+                    className={`text-xs mt-1.5 font-medium ${
+                      resendStatus.type === "success" ? "text-emerald-400" : "text-red-400"
+                    }`}
+                  >
+                    {resendStatus.message}
+                  </p>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={handleResendVerification}
+              disabled={resendingEmail}
+              className="self-start sm:self-auto px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-400 text-black hover:bg-amber-300 transition-colors disabled:opacity-50 whitespace-nowrap cursor-pointer"
+            >
+              {resendingEmail ? "Sending..." : "Resend Verification Email"}
+            </button>
+          </div>
+        )}
 
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Profile Info, Attendance, Certificates */}
+          {/* Left Column (lg:col-span-1) - Identity & Attendance */}
           <div className="lg:col-span-1 space-y-6">
-            {/* Profile Card */}
+            {/* Identity Card (Point 1, Point 2, Suggestion 1) */}
             <div
               className="rounded-xl border p-6"
               style={{ background: "#111111", borderColor: "#1f1f1f" }}
             >
               {/* Avatar & Name */}
-              <div className="flex flex-col items-center text-center mb-6">
+              <div className="flex flex-col items-center text-center mb-5">
                 <div
                   className={`w-20 h-20 rounded-full bg-linear-to-br ${
-                    isMember
-                      ? "from-pink-500 to-purple-500"
-                      : "from-purple-500 to-blue-500"
-                  } flex items-center justify-center mb-4 shadow-lg`}
+                    isAdmin
+                      ? "from-rose-500 to-amber-500 shadow-[0_0_24px_rgba(244,63,94,0.35)]"
+                      : isPostHolder
+                      ? "from-indigo-500 to-violet-500 shadow-[0_0_24px_rgba(99,102,241,0.35)]"
+                      : isMember
+                      ? "from-pink-500 to-purple-500 shadow-[0_0_24px_rgba(236,72,153,0.35)]"
+                      : "from-purple-500 to-blue-500 shadow-[0_0_24px_rgba(99,102,241,0.3)]"
+                  } flex items-center justify-center mb-3.5`}
                 >
                   <User size={40} className="text-white" />
                 </div>
-                <h2 className="text-xl font-bold mb-1">
-                  {profile?.name || "User"}
+                <h2 className="text-xl font-bold mb-2">
+                  {profile?.name || (isAdmin ? "Admin" : isPostHolder ? "Post Holder" : "User")}
                 </h2>
-                <p className="text-[#555] text-xs">
-                  ID: {user?._id?.substring(0, 12) ?? "..."}
-                </p>
-              </div>
 
-              {/* Quick Info */}
-              <div className="space-y-3 text-sm">
-                {profile?.email && (
-                  <div className="flex items-center gap-3">
-                    <Mail
-                      size={16}
-                      className={isMember ? "text-pink-400" : "text-purple-400"}
-                    />
-                    <span className="text-[#999] truncate">
-                      {profile.email.split("@")[0]}
-                    </span>
-                  </div>
-                )}
-                {profile?.branch && (
-                  <div className="flex items-center gap-3">
-                    <BookOpen size={16} className="text-blue-400" />
-                    <span className="text-[#999]">{profile.branch}</span>
-                  </div>
-                )}
-                {profile?.year && (
-                  <div className="flex items-center gap-3">
-                    <GraduationCap size={16} className="text-green-400" />
-                    <span className="text-[#999]">Year {profile.year}</span>
-                  </div>
-                )}
-                {profile?.roll_number && (
-                  <div className="flex items-center gap-3">
-                    <BarChart3 size={16} className="text-orange-400" />
-                    <span className="text-[#999]">{profile.roll_number}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Status Badge */}
-              <div
-                className="mt-4 pt-4 border-t"
-                style={{ borderColor: "#1f1f1f" }}
-              >
-                <div className="flex items-center gap-2">
+                {/* Status Badge */}
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-[#161616] border border-[#242424]">
                   <div
                     className={`w-2 h-2 rounded-full ${
-                      isMember ? "bg-pink-500" : "bg-green-500"
+                      isAdmin
+                        ? "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]"
+                        : isPostHolder
+                        ? "bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.6)]"
+                        : isMember
+                        ? "bg-pink-500 shadow-[0_0_8px_rgba(236,72,153,0.6)]"
+                        : "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
                     }`}
                   />
-                  <span className="text-xs text-[#999]">
-                    <span className="capitalize">{userRole}</span> •{" "}
-                    {profile?.email_verified ? "Verified" : "Unverified"}
+                  <span className="capitalize text-white/90">
+                    {isPostHolder
+                      ? `Post Holder${profile?.post_position ? ` (${profile.post_position})` : ""}`
+                      : userRole}
+                  </span>
+                  <span className="text-[#555]">•</span>
+                  <span className={isVerified || isAdmin ? "text-emerald-400" : "text-amber-400"}>
+                    {isVerified || isAdmin ? "Verified" : "Unverified"}
                   </span>
                 </div>
+
+                {/* Academic Metadata Pills (Rendered only if values exist) */}
+                {(profile?.branch || profile?.year || profile?.roll_number) && (
+                  <div className="flex gap-2 text-xs flex-wrap justify-center mt-3.5">
+                    {profile?.branch && (
+                      <span
+                        className="px-2.5 py-1 rounded-md font-medium"
+                        style={{ background: "#0ea5e915", color: "#38bdf8" }}
+                      >
+                        {profile.branch}
+                      </span>
+                    )}
+                    {profile?.year && (
+                      <span
+                        className="px-2.5 py-1 rounded-md font-medium"
+                        style={{ background: "#f59e0b15", color: "#fbbf24" }}
+                      >
+                        Year {profile.year}
+                      </span>
+                    )}
+                    {profile?.roll_number && (
+                      <span
+                        className="px-2.5 py-1 rounded-md font-medium"
+                        style={{ background: "#10b98115", color: "#34d399" }}
+                      >
+                        {profile.roll_number}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Edit Profile Button on Card */}
+                <button
+                  onClick={() => navigate("/profile/edit")}
+                  className="mt-3.5 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#262626] bg-[#141414] hover:bg-[#1c1c1c] text-xs font-medium text-white/80 hover:text-white transition-all cursor-pointer"
+                >
+                  <Pencil size={12} className="text-purple-400" />
+                  Edit Profile
+                </button>
+              </div>
+
+              {/* Contact Information (Point 2: Real email with copy action) */}
+              <div className="pt-4 border-t space-y-2.5" style={{ borderColor: "#1f1f1f" }}>
+                {profile?.email && (
+                  <div className="flex items-center justify-between gap-2.5 text-xs p-2.5 rounded-lg bg-[#0d0d0d] border border-[#1f1f1f]">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <Mail size={15} className="text-[#888] shrink-0" />
+                      <span className="text-[#ccc] truncate" title={profile.email}>
+                        {profile.email}
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleCopyEmail}
+                      title="Copy email to clipboard"
+                      className="text-[#666] hover:text-white transition-colors shrink-0 p-1 cursor-pointer"
+                    >
+                      {copiedEmail ? (
+                        <Check size={14} className="text-emerald-400" />
+                      ) : (
+                        <Copy size={14} />
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {profile?.phone && (
+                  <div className="flex items-center gap-2.5 text-xs p-2.5 rounded-lg bg-[#0d0d0d] border border-[#1f1f1f]">
+                    <Phone size={15} className="text-[#888] shrink-0" />
+                    <span className="text-[#ccc]">{profile.phone}</span>
+                  </div>
+                )}
+
                 {profile?.created_at && (
-                  <p className="text-xs text-[#555] mt-2">
-                    Joined{" "}
+                  <p className="text-xs text-[#555] text-center pt-1.5">
+                    Member since{" "}
                     {new Date(profile.created_at).toLocaleDateString("en-US", {
                       month: "short",
                       year: "numeric",
@@ -290,7 +434,7 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* Attendance Card */}
+            {/* Attendance Card (UNTOUCHED: Exactly preserved as requested) */}
             <div
               className="rounded-xl border p-6"
               style={{ background: "#111111", borderColor: "#1f1f1f" }}
@@ -348,214 +492,118 @@ export default function Profile() {
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Certificates Section */}
+          {/* Right Column (lg:col-span-2) - Certificates & My Blogs (Suggestion 2) */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Certificates Section (Moved to right column with ample space & Suggestion 5 empty state) */}
             <div
               className="rounded-xl border p-6 w-full"
               style={{ background: "#111111", borderColor: "#1f1f1f" }}
             >
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold flex items-center gap-3 text-white">
+                <div className="flex items-center gap-3">
                   <div
                     className="p-2 rounded-lg"
                     style={{ background: "#f59e0b18" }}
                   >
                     <Award size={18} style={{ color: "#f59e0b" }} />
                   </div>
-                  My Certificates
-                </h3>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">My Certificates</h3>
+                    <p className="text-xs text-[#666]">
+                      Official credentials earned from events & workshops
+                    </p>
+                  </div>
+                </div>
+
+                {certificates && certificates.length > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#f59e0b15] text-[#fbbf24] border border-[#f59e0b30]">
+                    {certificates.length} {certificates.length === 1 ? "Certificate" : "Certificates"}
+                  </span>
+                )}
               </div>
 
               {certificates && certificates.length > 0 ? (
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                   {certificates.map((cert) => (
                     <div
                       key={cert._id}
-                      className="rounded-lg p-4 border border-[#2a2a2a] bg-[#0d0d0d] transition-colors hover:border-[#fbbf24]/50"
+                      className="rounded-lg p-4 border border-[#262626] bg-[#0d0d0d] transition-all hover:border-[#fbbf24]/50 flex flex-col justify-between"
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-xl">🏅</span>
-                            <h4 className="font-bold text-white text-base">
-                              {cert.title || "Certificate"}
-                            </h4>
-                          </div>
-
-                          <div className="flex gap-2 flex-wrap items-center text-xs">
-                            <span className="px-2 py-0.5 rounded-md bg-[#10b98115] text-[#34d399] font-medium">
-                              ✓ Issued
-                            </span>
-                            <span className="px-2 py-0.5 rounded-md bg-[#1f1f1f] text-[#999]">
-                              {new Date(cert.issued_date).toLocaleDateString(
-                                "en-US",
-                                {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                }
-                              )}
-                            </span>
-                          </div>
+                      <div>
+                        <div className="flex items-start gap-2 mb-2">
+                          <span className="text-xl shrink-0">🏅</span>
+                          <h4 className="font-bold text-white text-sm line-clamp-2">
+                            {cert.title || "Certificate"}
+                          </h4>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => previewCertificate(cert)}
-                            className="px-3 py-2 rounded-lg text-xs font-semibold border border-[#333] text-[#ccc] hover:bg-[#1a1a1a] hover:text-white transition-colors"
-                            title="Preview certificate in new tab"
-                          >
-                            👁️ Preview
-                          </button>
-                          <button
-                            onClick={() => downloadCertificate(cert)}
-                            disabled={downloadingCertId === cert._id}
-                            className="px-3 py-2 rounded-lg text-xs font-semibold bg-[#fbbf24] text-black hover:bg-[#f59e0b] transition-colors disabled:opacity-50 flex items-center gap-1"
-                            title="Download certificate PNG"
-                          >
-                            <Download size={13} />
-                            {downloadingCertId === cert._id
-                              ? "Downloading..."
-                              : "Download"}
-                          </button>
+                        <div className="flex gap-2 flex-wrap items-center text-xs mb-4">
+                          <span className="px-2 py-0.5 rounded-md bg-[#10b98115] text-[#34d399] font-medium">
+                            ✓ Issued
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md bg-[#1a1a1a] text-[#888]">
+                            {new Date(cert.issued_date).toLocaleDateString(
+                              "en-US",
+                              {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              }
+                            )}
+                          </span>
                         </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-3 border-t border-[#1c1c1c]">
+                        <button
+                          onClick={() => previewCertificate(cert)}
+                          className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#333] text-[#ccc] hover:bg-[#1a1a1a] hover:text-white transition-colors cursor-pointer text-center"
+                          title="Preview certificate in new tab"
+                        >
+                          👁️ Preview
+                        </button>
+                        <button
+                          onClick={() => downloadCertificate(cert)}
+                          disabled={downloadingCertId === cert._id}
+                          className="flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#fbbf24] text-black hover:bg-[#f59e0b] transition-colors disabled:opacity-50 flex items-center justify-center gap-1 cursor-pointer text-center"
+                          title="Download certificate PNG"
+                        >
+                          <Download size={13} />
+                          {downloadingCertId === cert._id
+                            ? "Downloading..."
+                            : "Download"}
+                        </button>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <Award size={32} className="mx-auto mb-2 text-[#555]" />
-                  <p className="text-[#555] text-sm mb-1">
-                    No certificates issued yet.
+                /* Suggestion 5: Actionable Empty State */
+                <div className="text-center py-10 px-4 rounded-xl border border-dashed border-[#262626] bg-[#0d0d0d]/40">
+                  <div className="w-12 h-12 rounded-full bg-[#f59e0b12] text-[#f59e0b] flex items-center justify-center mx-auto mb-3">
+                    <Award size={24} />
+                  </div>
+                  <h4 className="text-white font-medium text-sm mb-1">
+                    No certificates issued yet
+                  </h4>
+                  <p className="text-[#666] text-xs max-w-sm mx-auto mb-4">
+                    Attend events and workshops organized by iCELL to earn official participation certificates.
                   </p>
-                  <p className="text-[#555] text-xs">
-                    Attend events and workshops to earn certificates!
-                  </p>
+                  <button
+                    onClick={() => navigate("/events")}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/15 text-white transition-colors border border-white/10 cursor-pointer"
+                  >
+                    Explore Events →
+                  </button>
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Right Column - Account Info & My Blogs */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Account Information Section */}
-            <div
-              className="rounded-xl border p-6"
-              style={{ background: "#111111", borderColor: "#1f1f1f" }}
-            >
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-3 text-white">
-                <div
-                  className="p-2 rounded-lg"
-                  style={{ background: "#a855f718" }}
-                >
-                  <User size={18} style={{ color: "#a855f7" }} />
-                </div>
-                Account Information
-              </h3>
-
-              <div className="space-y-3">
-                <div>
-                  <p className="text-[#555] text-sm mb-1">Full Name</p>
-                  <p className="text-white font-medium">
-                    {profile?.name || "N/A"}
-                  </p>
-                </div>
-
-                <div className="border-t" style={{ borderColor: "#1f1f1f" }}>
-                  <p className="text-[#555] text-sm mb-1 mt-3">Email Address</p>
-                  <p className="text-white break-all">
-                    {profile?.email || "N/A"}
-                  </p>
-                </div>
-
-                {profile?.phone && (
-                  <div className="border-t" style={{ borderColor: "#1f1f1f" }}>
-                    <p className="text-[#555] text-sm mb-1 mt-3">Phone</p>
-                    <p className="text-white">{profile.phone}</p>
-                  </div>
-                )}
-
-                <div className="border-t" style={{ borderColor: "#1f1f1f" }}>
-                  <p className="text-[#555] text-sm mb-1 mt-3">Role</p>
-                  <p className="text-white capitalize">{userRole}</p>
-                </div>
-
-                <div className="border-t" style={{ borderColor: "#1f1f1f" }}>
-                  <p className="text-[#555] text-sm mb-1 mt-3">
-                    Email Verification
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-2 h-2 rounded-full ${
-                        profile?.email_verified
-                          ? "bg-green-500"
-                          : "bg-yellow-500"
-                      }`}
-                    />
-                    <p className="text-white capitalize">
-                      {profile?.email_verified ? "Verified" : "Pending"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="border-t" style={{ borderColor: "#1f1f1f" }}>
-                  <p className="text-[#555] text-sm mb-1 mt-3">Academic Info</p>
-                  <div className="flex gap-2 text-sm flex-wrap items-center">
-                    {profile?.branch && (
-                      <span
-                        className="px-2.5 py-1 rounded-md text-xs font-medium"
-                        style={{ background: "#0ea5e915", color: "#38bdf8" }}
-                      >
-                        {profile.branch}
-                      </span>
-                    )}
-                    {profile?.year && (
-                      <span
-                        className="px-2.5 py-1 rounded-md text-xs font-medium"
-                        style={{ background: "#f59e0b15", color: "#fbbf24" }}
-                      >
-                        Year {profile.year}
-                      </span>
-                    )}
-                    {profile?.roll_number && (
-                      <span
-                        className="px-2.5 py-1 rounded-md text-xs font-medium"
-                        style={{ background: "#10b98115", color: "#34d399" }}
-                      >
-                        {profile.roll_number}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* My Blogs Section */}
             <UserBlogsSection userId={user?.id || user?._id || user?.userId} />
           </div>
-        </div>
-
-        {/* Logout Button */}
-        <div className="mt-8">
-          <button
-            onClick={handleLogout}
-            className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg transition-all duration-300 font-medium border text-sm"
-            style={{
-              background: "#ef444415",
-              borderColor: "#ef444430",
-              color: "#ef4444",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#ef444425";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#ef444415";
-            }}
-          >
-            <LogOut size={16} />
-            Logout
-          </button>
         </div>
       </div>
     </div>

@@ -122,7 +122,7 @@ export async function sendVerificationEmail(
             <p>Best regards,<br>ICell Team</p>
           </div>
           <div class="footer">
-            <p>&copy; 2024 NIT Kurukshetra. All rights reserved.</p>
+            <p>&copy; ${new Date().getFullYear()} NIT Kurukshetra. All rights reserved.</p>
             <p>This is an automated email. Please do not reply to this message.</p>
           </div>
         </div>
@@ -337,7 +337,7 @@ export async function sendPasswordResetEmail(
             <p>Best regards,<br>ICell Team</p>
           </div>
           <div class="footer">
-            <p>&copy; 2024 NIT Kurukshetra. All rights reserved.</p>
+            <p>&copy; ${new Date().getFullYear()} NIT Kurukshetra. All rights reserved.</p>
             <p>This is an automated email. Please do not reply to this message.</p>
           </div>
         </div>

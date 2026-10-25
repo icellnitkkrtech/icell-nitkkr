@@ -13,6 +13,7 @@ import {
   BookOpen,
   Shield,
   BarChart3,
+  Pencil,
 } from "lucide-react";
 import UserBlogsSection from "../../components/profile/UserBlogsSection";
 
@@ -248,6 +249,23 @@ export default function AdminProfile() {
                         }
                       )}
                     </p>
+
+                    <div className="mt-4 pt-3 border-t border-[#1f1f1f] flex flex-col gap-2">
+                      <button
+                        onClick={() => navigate("/profile/edit")}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-medium text-white transition-colors cursor-pointer border border-white/10"
+                      >
+                        <Pencil size={12} className="text-purple-400" />
+                        Edit Profile
+                      </button>
+                      <button
+                        onClick={() => navigate("/profile")}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#888] hover:text-white transition-colors cursor-pointer"
+                      >
+                        <User size={12} />
+                        View Main Profile Page →
+                      </button>
+                    </div>
                   </div>
                 </div>
 
