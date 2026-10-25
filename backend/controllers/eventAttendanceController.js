@@ -6,7 +6,8 @@ import {
   fetchMultipleStudentsAttendanceStats,
   fetchUniqueEvents, // Added to get a list of past dynamic events
   fetchMainEvents, // Get main events from events collection
-  fetchAttendanceOnlyEvents, // Get attendance-only events
+  fetchOtherEvents, // Get other events
+  fetchAttendanceOnlyEvents, // Legacy alias
   deleteEvent, // Delete event and all its attendance records
 } from "../models/eventAttendanceModel.js";
 
@@ -33,7 +34,7 @@ export const markStudentAttendance = async (req, res) => {
     }
 
     const markedBy = req.user?.userId || null;
-    const source = event_source || "attendance_only"; // Default to attendance_only if not specified
+    const source = event_source === "main" ? "main" : "other"; // Default to "other" if not main
 
     const { data, error } = await markAttendance(
       event_name,
@@ -150,16 +151,17 @@ export const getMainEvents = async (req, res) => {
   }
 };
 
-// GET /api/event-attendance/attendance-only-events - Get attendance-only events
-export const getAttendanceOnlyEvents = async (req, res) => {
+// GET /api/event-attendance/other-events (and /attendance-only-events) - Get other events
+export const getOtherEvents = async (req, res) => {
   try {
-    const { data, error } = await fetchAttendanceOnlyEvents();
+    const { data, error } = await fetchOtherEvents();
     if (error) return res.status(400).json({ error: error.message });
     res.json(data || []);
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }
 };
+export const getAttendanceOnlyEvents = getOtherEvents;
 
 // DELETE /api/event-attendance/event - Delete event and all its attendance records via query params
 export const deleteEventAttendance = async (req, res) => {

@@ -19,6 +19,18 @@ import {
 
 const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
+// Helper to format event types cleanly
+const formatEventType = (type) => {
+  if (!type) return "Other Event";
+  const map = {
+    meet: "Regular Meet",
+    internal: "Internal Event",
+    external: "External Event",
+    workshop: "Workshop",
+  };
+  return map[type.toLowerCase()] || (type.charAt(0).toUpperCase() + type.slice(1));
+};
+
 export default function AdminAttendance() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -27,7 +39,7 @@ export default function AdminAttendance() {
   // App State
   const [students, setStudents] = useState([]);
   const [mainEvents, setMainEvents] = useState([]);
-  const [attendanceOnlyEvents, setAttendanceOnlyEvents] = useState([]);
+  const [otherEvents, setOtherEvents] = useState([]);
   const [pastEvents, setPastEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [studentsLoading, setStudentsLoading] = useState(true);
@@ -37,14 +49,14 @@ export default function AdminAttendance() {
   const [error, setError] = useState(null);
 
   // Active View State
-  // 'list' = show all past events, 'select' = choose between main/attendance-only, 'create' = new attendance-only, 'edit' = mark attendance
+  // 'list' = show all past events, 'select' = choose between main/other events, 'create' = new other event, 'edit' = mark attendance
   const [viewState, setViewState] = useState("list");
   const [eventName, setEventName] = useState("");
   const [eventType, setEventType] = useState("meet");
   const [eventDate, setEventDate] = useState(
     new Date().toISOString().split("T")[0]
   );
-  const [eventSource, setEventSource] = useState("attendance_only"); // Track where event came from
+  const [eventSource, setEventSource] = useState("other"); // Track where event came from: "main" or "other"
   const [eventYears, setEventYears] = useState([]); // Years selected for the event ["1st", "2nd", etc.]
   const [attendance, setAttendance] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
@@ -109,7 +121,7 @@ export default function AdminAttendance() {
       }
 
       // Fetch all required resources concurrently via Promise.allSettled
-      const [eventsRes, mainEventsRes, attendanceOnlyRes, studentsRes] =
+      const [eventsRes, mainEventsRes, otherEventsRes, studentsRes] =
         await Promise.allSettled([
           fetch(`${API}/api/event-attendance/events/list`, {
             headers: { Authorization: `Bearer ${token}` },
@@ -117,7 +129,7 @@ export default function AdminAttendance() {
           fetch(`${API}/api/event-attendance/main-events`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          fetch(`${API}/api/event-attendance/attendance-only-events`, {
+          fetch(`${API}/api/event-attendance/other-events`, {
             headers: { Authorization: `Bearer ${token}` },
           }),
           fetch(`${API}/api/students`, {
@@ -150,14 +162,14 @@ export default function AdminAttendance() {
         setMainEvents(Array.isArray(mainEventsData) ? mainEventsData : []);
       }
 
-      // 3. Process Attendance-only Events
+      // 3. Process Other Events
       if (
-        attendanceOnlyRes.status === "fulfilled" &&
-        attendanceOnlyRes.value.ok
+        otherEventsRes.status === "fulfilled" &&
+        otherEventsRes.value.ok
       ) {
-        const attendanceOnlyData = await attendanceOnlyRes.value.json();
-        setAttendanceOnlyEvents(
-          Array.isArray(attendanceOnlyData) ? attendanceOnlyData : []
+        const otherEventsData = await otherEventsRes.value.json();
+        setOtherEvents(
+          Array.isArray(otherEventsData) ? otherEventsData : []
         );
       }
 
@@ -187,7 +199,7 @@ export default function AdminAttendance() {
     name,
     date,
     type,
-    source = "attendance_only"
+    source = "other"
   ) => {
     try {
       setLoading(true);
@@ -295,12 +307,12 @@ export default function AdminAttendance() {
   };
 
   const handleCreateNew = () => {
-    // Go to selection view where user can choose between main or attendance-only
+    // Go to selection view where user can choose between main or other events
     // Clear ALL fields for fresh start
     setEventName("");
     setEventType("meet");
     setEventDate(new Date().toISOString().split("T")[0]);
-    setEventSource("attendance_only");
+    setEventSource("other");
     setEventYears([]);
     setAttendance({});
     setSearchTerm("");
@@ -323,13 +335,13 @@ export default function AdminAttendance() {
     setViewState("edit");
   };
 
-  const handleCreateAttendanceOnly = () => {
-    // User chose to create a new attendance-only event
+  const handleCreateOtherEvent = () => {
+    // User chose to create a new other event
     // Initialize empty fields for new event creation (called from "list" view)
     setEventName("");
     setEventType("meet");
     setEventDate(new Date().toISOString().split("T")[0]);
-    setEventSource("attendance_only");
+    setEventSource("other");
     setEventYears([]);
     setAttendance({});
     setSearchTerm("");
@@ -557,45 +569,62 @@ export default function AdminAttendance() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {pastEvents.map((ev, index) => (
-                  <div
-                    key={index}
-                    onClick={() =>
-                      loadEventAttendance(ev.name, ev.date, ev.type, ev.source)
-                    }
-                    className="p-5 rounded-xl border border-[#1f1f1f] bg-[#111111] hover:border-purple-500/50 cursor-pointer transition group relative hover:bg-[#141414]"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-white truncate pr-6">
-                          {ev.name}
-                        </h3>
-                        <p className="text-xs text-[#666] mt-1">
-                          {ev.source === "main"
-                            ? "📌 Main Event"
-                            : "📝 Attendance-Only"}
-                        </p>
+                {pastEvents.map((ev, index) => {
+                  const isMain = ev.source === "main";
+                  const eventDisplayType = isMain
+                    ? "Main Event"
+                    : formatEventType(ev.type);
+
+                  return (
+                    <div
+                      key={index}
+                      onClick={() =>
+                        loadEventAttendance(ev.name, ev.date, ev.type, ev.source)
+                      }
+                      className="p-5 rounded-xl border border-[#1f1f1f] bg-[#111111] hover:border-purple-500/50 cursor-pointer transition group relative hover:bg-[#141414]"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1 min-w-0 pr-6">
+                          <h3 className="font-semibold text-white truncate text-base">
+                            {ev.name}
+                          </h3>
+                          <div className="flex items-center gap-2 mt-2">
+                            {isMain ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                                📌 Main Event
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                                📝 {eventDisplayType}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => handleDeleteEvent(ev.name, ev.date, e)}
+                          disabled={deleting}
+                          className="absolute top-4 right-4 text-[#555] hover:text-red-500 transition opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-950/20 cursor-pointer"
+                          title="Delete Event"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
-                      <button
-                        onClick={(e) => handleDeleteEvent(ev.name, ev.date, e)}
-                        disabled={deleting}
-                        className="absolute top-4 right-4 text-[#555] hover:text-red-500 transition opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-950/20"
-                        title="Delete Event"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center justify-between text-xs text-[#888] mt-3 pt-3 border-t border-[#1a1a1a]">
+                        <span className="flex items-center gap-1.5">
+                          <Calendar size={13} className="text-[#666]" />{" "}
+                          {new Date(ev.date).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </span>
+                        <span className="text-[#666] capitalize">
+                          {isMain ? "Main Event" : "Other Event"}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex gap-3 text-xs text-[#888]">
-                      <span className="flex items-center gap-1">
-                        <Calendar size={14} />{" "}
-                        {new Date(ev.date).toLocaleDateString()}
-                      </span>
-                      <span className="capitalize px-2 py-0.5 bg-[#1f1f1f] rounded text-[#aaa]">
-                        {ev.type}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -667,11 +696,14 @@ export default function AdminAttendance() {
                 )}
               </div>
 
-              {/* Option 2: Create Attendance-Only Event */}
+              {/* Option 2: Create Other Event */}
               <div className="rounded-2xl border-2 border-[#1f1f1f] bg-[#111111] p-8 hover:border-blue-500 transition">
-                <h3 className="text-xl font-bold text-white mb-4">
-                  📝 New Attendance-Only Event
+                <h3 className="text-xl font-bold text-white mb-2">
+                  📝 New Other Event
                 </h3>
+                <p className="text-[#888] text-sm mb-6">
+                  Create a regular meet, internal session, workshop, or other club activity.
+                </p>
 
                 <div className="space-y-4 mb-6">
                   <div>
@@ -726,7 +758,7 @@ export default function AdminAttendance() {
                 <button
                   onClick={handleProceedToMarkAttendance}
                   disabled={!eventName.trim()}
-                  className="w-full px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition"
+                  className="w-full px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium transition cursor-pointer"
                 >
                   Create & Mark Attendance
                 </button>
@@ -735,7 +767,7 @@ export default function AdminAttendance() {
 
             <button
               onClick={() => setViewState("list")}
-              className="mt-6 px-4 py-2 text-[#888] hover:text-white transition"
+              className="mt-6 px-4 py-2 text-[#888] hover:text-white transition cursor-pointer"
             >
               ← Back to Events List
             </button>
@@ -749,13 +781,11 @@ export default function AdminAttendance() {
             <div className="bg-[#111111] border border-[#1f1f1f] rounded-xl p-6 mb-8">
               <h2 className="text-lg font-semibold mb-4 text-purple-400">
                 {viewState === "create"
-                  ? "New Attendance-Only Event"
+                  ? `New Other Event (${formatEventType(eventType)})`
                   : `Editing Event${
                       eventSource === "main"
                         ? " (Main Event)"
-                        : eventSource === "attendance_only"
-                        ? " (Attendance-Only)"
-                        : ""
+                        : ` (${formatEventType(eventType)})`
                     }`}
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

@@ -9,7 +9,8 @@ import {
   getBulkStudentsAttendanceStats,
   getUniqueEvents, // We will add this to help the frontend dropdown!
   getMainEvents, // Get main events from events collection
-  getAttendanceOnlyEvents, // Get attendance-only events
+  getOtherEvents, // Get other events
+  getAttendanceOnlyEvents, // Legacy alias
   deleteEventAttendance, // Delete event and all its records
 } from "../controllers/eventAttendanceController.js";
 
@@ -30,7 +31,8 @@ router.get("/events/list", verifyUser, isAdmin, getUniqueEvents);
 // 4. GET /api/event-attendance/main-events - Get main events from events collection
 router.get("/main-events", verifyUser, isAdmin, getMainEvents);
 
-// 5. GET /api/event-attendance/attendance-only-events - Get attendance-only events
+// 5. GET /api/event-attendance/other-events - Get other events (with legacy alias)
+router.get("/other-events", verifyUser, isAdmin, getOtherEvents);
 router.get(
   "/attendance-only-events",
   verifyUser,
