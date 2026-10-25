@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Edit2, Info, Plus, Save, Trash2, Upload, X } from "lucide-react";
 import AdminSidebar from "../../components/admin/AdminSidebar";
 import api from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 
+const ALLOWED_ROLES = ["admin", "post_holder"];
 const DEFAULT_CANVAS = { width: 1600, height: 1200 };
 const FONT_FAMILIES = ["Arial", "Georgia", "Times New Roman", "Verdana", "Helvetica"];
 const ALIGN_TRANSLATE = { left: "0%", center: "-50%", right: "-100%" };
@@ -61,7 +63,10 @@ function Labeled({ label, children, className = "" }) {
 }
 
 export default function AdminCertificateTemplates() {
+  const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const isAllowed = !!user && ALLOWED_ROLES.includes(user.role);
+
   const [templates, setTemplates] = useState([]);
   const [editing, setEditing] = useState(null);
   const [name, setName] = useState("");
@@ -82,17 +87,19 @@ export default function AdminCertificateTemplates() {
 
   // ---- auth guard -------------------------------------------------------
   useEffect(() => {
-    if (!authLoading && user?.role !== "admin") window.location.replace("/");
-  }, [authLoading, user]);
+    if (!authLoading && !isAllowed) {
+      navigate("/", { replace: true });
+    }
+  }, [authLoading, isAllowed, navigate]);
 
   // ---- data -------------------------------------------------------------
   useEffect(() => {
-    if (authLoading || user?.role !== "admin") return;
+    if (authLoading || !isAllowed) return;
     api
       .get("/certificate-templates")
       .then((res) => setTemplates(res.data.templates || []))
       .catch(() => setError("Could not load templates"));
-  }, [authLoading, user]);
+  }, [authLoading, isAllowed]);
 
   // ---- object URL lifecycle ---------------------------------------------
   const backgroundPreviewUrl = useMemo(
@@ -342,7 +349,7 @@ export default function AdminCertificateTemplates() {
     }
   };
 
-  if (authLoading || user?.role !== "admin") return null;
+  if (authLoading || !isAllowed) return null;
 
   const canSave = Boolean(name.trim() && (editing || background) && fields.length > 0 && !saving);
 
