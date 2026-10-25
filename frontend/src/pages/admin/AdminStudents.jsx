@@ -47,7 +47,7 @@ const POSITIONS = [
 export default function AdminStudents() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [students, setStudents] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -364,7 +364,7 @@ export default function AdminStudents() {
       <AdminSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       <div className="flex-1 overflow-auto">
         <div
-          className="p-4 sm:p-6 md:p-8 min-h-screen max-md:pt-20"
+          className="p-4 sm:p-6 md:p-8 min-h-screen max-lg:pt-20"
           style={{ background: "#0d0d0d" }}
         >
           {/* Header */}
@@ -568,7 +568,7 @@ export default function AdminStudents() {
                                   No data
                                 </span>
                               ) : (
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5 sm:gap-2">
                                   <span
                                     className="px-2 sm:px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap"
                                     style={{
@@ -578,8 +578,8 @@ export default function AdminStudents() {
                                   >
                                     {percentage}%
                                   </span>
-                                  <span className="text-[#555] text-xs hidden sm:inline">
-                                    {attendanceData.present}/{total}
+                                  <span className="text-[#888] text-xs font-mono whitespace-nowrap">
+                                    ({attendanceData.present}/{total})
                                   </span>
                                 </div>
                               )}

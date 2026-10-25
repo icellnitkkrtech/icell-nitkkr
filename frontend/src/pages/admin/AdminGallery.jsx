@@ -9,7 +9,7 @@ const CLOUDINARY_CLOUD_NAME = "dpgkl1wq4";
 const CLOUDINARY_UPLOAD_PRESET = "icell-webite-gallery-upload";
 
 export default function AdminGallery() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -369,7 +369,7 @@ export default function AdminGallery() {
     <div className="flex h-screen bg-[#0d0d0d] text-white">
       <AdminSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
-      <div className="flex-1 overflow-auto p-8 max-md:pt-20">
+      <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-8 max-lg:pt-20">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
