@@ -32,7 +32,7 @@ export async function sendVerificationEmail(
       process.env.MAILJET_FROM_EMAIL ||
       process.env.SMTP_FROM ||
       "noreply@nitkkr.ac.in";
-    const senderName = process.env.MAILJET_FROM_NAME || "NITKKR";
+    const senderName = process.env.MAILJET_FROM_NAME || "ICELL";
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -199,7 +199,7 @@ export async function sendEmail({
       process.env.MAILJET_FROM_EMAIL ||
       process.env.SMTP_FROM ||
       "noreply@nitkkr.ac.in";
-    const senderName = fromName || process.env.MAILJET_FROM_NAME || "NITKKR";
+    const senderName = fromName || process.env.MAILJET_FROM_NAME || "ICELL";
 
     const response = await mailjet.post("send", { version: "v3.1" }).request({
       Messages: [
@@ -247,7 +247,7 @@ export async function sendPasswordResetEmail(
       process.env.MAILJET_FROM_EMAIL ||
       process.env.SMTP_FROM ||
       "noreply@nitkkr.ac.in";
-    const senderName = process.env.MAILJET_FROM_NAME || "NITKKR";
+    const senderName = process.env.MAILJET_FROM_NAME || "ICELL";
 
     const htmlContent = `
       <!DOCTYPE html>
