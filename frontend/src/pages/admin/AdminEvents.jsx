@@ -36,7 +36,7 @@ const INITIAL_FORM_DATA = {
 export default function AdminEvents() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -199,7 +199,7 @@ export default function AdminEvents() {
   return (
     <div className="flex h-screen bg-[#0d0d0d] text-white">
       <AdminSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="flex-1 overflow-auto p-8 max-md:pt-20">
+      <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-8 max-lg:pt-20">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>

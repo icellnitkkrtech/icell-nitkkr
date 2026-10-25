@@ -17,7 +17,7 @@ import {
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -108,7 +108,7 @@ export default function AdminDashboard() {
       <AdminSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       <div className="flex-1 overflow-auto">
         <div
-          className="p-4 sm:p-6 md:p-8 min-h-screen max-md:pt-20"
+          className="p-4 sm:p-6 md:p-8 min-h-screen max-lg:pt-20"
           style={{ background: "#0d0d0d" }}
         >
           {/* Header */}

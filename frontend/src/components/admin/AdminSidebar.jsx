@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -85,42 +85,84 @@ const adminLinks = [
 export default function AdminSidebar({ sidebarOpen, setSidebarOpen }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isOpen, setIsOpen] = useState(sidebarOpen ?? true);
   const { logout } = useAuth();
 
+  // Helper to determine if we are in overlay/drawer mode (screen width < 1024px)
+  const isDrawerMode = () => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth < 1024;
+    }
+    return false;
+  };
+
+  // On any screen where hamburger is active (< 1024px), sidebar must default to closed (false)
+  const [isOpen, setIsOpen] = useState(() => {
+    if (isDrawerMode()) return false;
+    return sidebarOpen ?? true;
+  });
+
+  const closeSidebar = () => {
+    setIsOpen(false);
+    setSidebarOpen?.(false);
+  };
+
+  const toggleSidebar = () => {
+    const next = !isOpen;
+    setIsOpen(next);
+    setSidebarOpen?.(next);
+  };
+
+  // Close sidebar whenever route/section changes on screens with drawer
+  useEffect(() => {
+    if (isDrawerMode()) {
+      closeSidebar();
+    }
+  }, [location.pathname]);
+
+  // Handle window resizing
+  useEffect(() => {
+    const handleResize = () => {
+      if (isDrawerMode()) {
+        closeSidebar();
+      } else {
+        setIsOpen(true);
+        setSidebarOpen?.(true);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const handleLogout = async () => {
+    if (isDrawerMode()) {
+      closeSidebar();
+    }
     logout();
     navigate("/");
   };
 
-  const toggleSidebar = () => {
-    setIsOpen(!isOpen);
-    setSidebarOpen?.(!isOpen);
-  };
-
   const isActive = (path) => {
-    return location.pathname === path || location.pathname.startsWith(path);
+    if (location.pathname === path) return true;
+    return location.pathname.startsWith(`${path}/`);
   };
 
   return (
     <>
-      {/* Mobile Menu Button */}
+      {/* Menu Button for screens where sidebar is a drawer */}
       <button
         onClick={toggleSidebar}
-        className="fixed top-6 left-6 z-50 hidden max-md:block p-2 rounded-lg hover:bg-[#1f1f1f] transition-colors"
+        aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
+        className="fixed top-4 left-4 z-50 lg:hidden flex items-center justify-center p-2.5 rounded-xl bg-[#18181b]/90 backdrop-blur-md border border-white/15 text-white shadow-xl hover:bg-[#27272a] transition-all"
       >
-        {isOpen ? (
-          <X size={24} className="text-white" />
-        ) : (
-          <Menu size={24} className="text-white" />
-        )}
+        {isOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
-      {/* Backdrop for mobile */}
+      {/* Backdrop for drawer */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-30 hidden max-md:block"
-          onClick={() => setIsOpen(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden block"
+          onClick={closeSidebar}
         />
       )}
 
@@ -128,28 +170,40 @@ export default function AdminSidebar({ sidebarOpen, setSidebarOpen }) {
       <aside
         className={`fixed left-0 top-0 h-screen w-64 bg-[#111111] border-r z-40 transition-all duration-300 overflow-hidden flex flex-col ${
           isOpen ? "translate-x-0" : "-translate-x-full"
-        } md:static md:translate-x-0`}
+        } lg:static lg:translate-x-0`}
         style={{ borderColor: "#1f1f1f" }}
       >
         {/* Header */}
         <div
-          className="pt-16 md:pt-0 p-6 border-b flex items-center justify-between"
+          className="pt-16 lg:pt-0 p-6 border-b flex items-center justify-between"
           style={{ borderColor: "#1f1f1f" }}
         >
           <div>
             <h2 className="text-xl font-bold text-white">ICell Admin</h2>
             <p className="text-[#555] text-xs mt-1">Management System</p>
           </div>
-          <button
-            onClick={() => navigate("/")}
-            className="p-2 rounded-lg hover:bg-yellow-400/20 transition-all duration-200 group"
-            title="Go to Home"
-          >
-            <Home
-              size={20}
-              className="text-yellow-400 group-hover:text-yellow-300 group-hover:scale-110 transition-transform"
-            />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => {
+                if (isDrawerMode()) closeSidebar();
+                navigate("/");
+              }}
+              className="p-2 rounded-lg hover:bg-yellow-400/20 transition-all duration-200 group"
+              title="Go to Home"
+            >
+              <Home
+                size={18}
+                className="text-yellow-400 group-hover:text-yellow-300 group-hover:scale-110 transition-transform"
+              />
+            </button>
+            <button
+              onClick={closeSidebar}
+              className="p-2 rounded-lg hover:bg-white/10 transition-colors lg:hidden flex text-neutral-400 hover:text-white"
+              title="Close Sidebar"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Navigation Links */}
@@ -161,8 +215,10 @@ export default function AdminSidebar({ sidebarOpen, setSidebarOpen }) {
               <button
                 key={link.label}
                 onClick={() => {
+                  if (isDrawerMode()) {
+                    closeSidebar();
+                  }
                   navigate(link.path);
-                  setIsOpen(false);
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-left group"
                 style={{

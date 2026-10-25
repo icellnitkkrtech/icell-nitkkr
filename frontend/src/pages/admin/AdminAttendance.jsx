@@ -34,7 +34,7 @@ const formatEventType = (type) => {
 export default function AdminAttendance() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // App State
   const [students, setStudents] = useState([]);
@@ -440,7 +440,10 @@ export default function AdminAttendance() {
 
   const filteredStudents = students.filter((student) => {
     // Filter by search term
-    const matchesSearch = `${student.name} ${student.email}`
+    const rollNumber =
+      student.roll_number ||
+      (student.email ? student.email.split("@")[0] : "");
+    const matchesSearch = `${student.name} ${student.email} ${rollNumber}`
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
 
@@ -475,7 +478,7 @@ export default function AdminAttendance() {
   return (
     <div className="flex h-screen bg-[#0d0d0d] text-white">
       <AdminSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="flex-1 overflow-auto p-8 max-md:pt-20">
+      <div className="flex-1 overflow-auto p-4 sm:p-6 md:p-8 max-lg:pt-20">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -848,7 +851,7 @@ export default function AdminAttendance() {
                   />
                   <input
                     type="text"
-                    placeholder="Search students..."
+                    placeholder="Search by name, roll no, or email..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#111111] border border-[#1f1f1f] text-white focus:outline-none focus:border-purple-500"
@@ -957,99 +960,110 @@ export default function AdminAttendance() {
               </div>
             </div>
 
-            {/* Students Table */}
-            <div className="rounded-lg border border-[#1f1f1f] overflow-hidden mb-6">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-[#111111] border-b border-[#1f1f1f]">
-                    <th className="px-6 py-3 text-left text-sm text-[#888]">
-                      Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm text-[#888]">
-                      Branch
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm text-[#888]">
-                      Attendance
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {studentsLoading || loading ? (
-                    <tr>
-                      <td
-                        colSpan={3}
-                        className="px-6 py-12 text-center text-[#666]"
-                      >
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Loader2
-                            size={24}
-                            className="animate-spin text-purple-400"
-                          />
-                          <span className="text-sm">
-                            Loading students & attendance...
-                          </span>
-                        </div>
-                      </td>
+            {/* Students Table with Horizontal Scroll */}
+            <div className="rounded-lg border border-[#1f1f1f] overflow-hidden mb-6 bg-[#111111]">
+              <div className="overflow-x-auto w-full">
+                <table className="w-full min-w-[550px] text-sm">
+                  <thead>
+                    <tr className="bg-[#111111] border-b border-[#1f1f1f]">
+                      <th className="px-4 sm:px-6 py-3 text-left text-sm text-[#888] whitespace-nowrap">
+                        Roll No.
+                      </th>
+                      <th className="px-4 sm:px-6 py-3 text-left text-sm text-[#888] whitespace-nowrap">
+                        Name
+                      </th>
+                      <th className="px-4 sm:px-6 py-3 text-left text-sm text-[#888] whitespace-nowrap">
+                        Branch
+                      </th>
+                      <th className="px-4 sm:px-6 py-3 text-left text-sm text-[#888] whitespace-nowrap">
+                        Attendance
+                      </th>
                     </tr>
-                  ) : filteredStudents.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={3}
-                        className="px-6 py-8 text-center text-[#666]"
-                      >
-                        No students found matching your filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredStudents.map((student) => {
-                      const studentId = student._id || student.id;
-                      return (
-                        <tr
-                          key={studentId}
-                          className="border-b border-[#1f1f1f] hover:bg-[#1a1a1a] transition"
+                  </thead>
+                  <tbody>
+                    {studentsLoading || loading ? (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="px-6 py-12 text-center text-[#666]"
                         >
-                          <td className="px-6 py-4 text-sm text-white">
-                            {student.name}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-[#666]">
-                            {student.branch}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() =>
-                                  handleAttendanceChange(studentId, "present")
-                                }
-                                className={`p-2 rounded ${
-                                  attendance[studentId] === "present"
-                                    ? "bg-green-500 text-white"
-                                    : "bg-[#1f1f1f] text-[#666] hover:bg-[#2f2f2f]"
-                                }`}
-                                title="Mark Present"
-                              >
-                                <Check size={18} />
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleAttendanceChange(studentId, "absent")
-                                }
-                                className={`p-2 rounded ${
-                                  attendance[studentId] === "absent"
-                                    ? "bg-red-500 text-white"
-                                    : "bg-[#1f1f1f] text-[#666] hover:bg-[#2f2f2f]"
-                                }`}
-                                title="Mark Absent"
-                              >
-                                <X size={18} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <Loader2
+                              size={24}
+                              className="animate-spin text-purple-400"
+                            />
+                            <span className="text-sm">
+                              Loading students & attendance...
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : filteredStudents.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="px-6 py-8 text-center text-[#666]"
+                        >
+                          No students found matching your filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredStudents.map((student) => {
+                        const studentId = student._id || student.id;
+                        return (
+                          <tr
+                            key={studentId}
+                            className="border-b border-[#1f1f1f] hover:bg-[#1a1a1a] transition"
+                          >
+                            <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-[#aaa] font-mono whitespace-nowrap">
+                              {student.roll_number ||
+                                (student.email
+                                  ? student.email.split("@")[0]
+                                  : "-")}
+                            </td>
+                            <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-white font-medium whitespace-nowrap">
+                              {student.name}
+                            </td>
+                            <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-[#888] whitespace-nowrap">
+                              {student.branch || "-"}
+                            </td>
+                            <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() =>
+                                    handleAttendanceChange(studentId, "present")
+                                  }
+                                  className={`p-2 rounded ${
+                                    attendance[studentId] === "present"
+                                      ? "bg-green-500 text-white"
+                                      : "bg-[#1f1f1f] text-[#666] hover:bg-[#2f2f2f]"
+                                  }`}
+                                  title="Mark Present"
+                                >
+                                  <Check size={18} />
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleAttendanceChange(studentId, "absent")
+                                  }
+                                  className={`p-2 rounded ${
+                                    attendance[studentId] === "absent"
+                                      ? "bg-red-500 text-white"
+                                      : "bg-[#1f1f1f] text-[#666] hover:bg-[#2f2f2f]"
+                                  }`}
+                                  title="Mark Absent"
+                                >
+                                  <X size={18} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <button

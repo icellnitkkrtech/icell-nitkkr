@@ -86,7 +86,7 @@ const positions = [
 ];
 
 export default function AdminTeams() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [teams, setTeams] = useState(initialTeams);
   const [selectedTeam, setSelectedTeam] = useState(initialTeams[0]);
   const [showAddMember, setShowAddMember] = useState(false);
@@ -165,7 +165,7 @@ export default function AdminTeams() {
       <AdminSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       <div className="flex-1 overflow-auto">
         <div
-          className="p-8 min-h-screen max-md:pt-20"
+          className="p-4 sm:p-6 md:p-8 min-h-screen max-lg:pt-20"
           style={{ background: "#0d0d0d" }}
         >
           <div className="flex items-center justify-between mb-8">

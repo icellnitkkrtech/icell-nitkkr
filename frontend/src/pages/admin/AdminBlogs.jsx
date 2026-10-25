@@ -26,7 +26,7 @@ const statusStyle = {
 export default function AdminBlogs() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [blogs, setBlogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState("All");
@@ -167,7 +167,7 @@ export default function AdminBlogs() {
       <AdminSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       <div className="flex-1 overflow-auto">
         <div
-          className="max-md:pt-20"
+          className="max-lg:pt-20"
           style={{
             padding: "32px",
             minHeight: "100vh",
