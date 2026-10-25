@@ -28,7 +28,7 @@ async function testMailjet() {
         {
           From: {
             Email: process.env.MAILJET_FROM_EMAIL || "noreply@nitkkr.ac.in",
-            Name: "NITKKR Test",
+            Name: "ICELL Test",
           },
           To: [
             {
