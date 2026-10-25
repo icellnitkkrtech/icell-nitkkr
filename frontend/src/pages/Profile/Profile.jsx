@@ -10,19 +10,22 @@ import {
   LogOut,
   Award,
   Calendar,
-  CheckCircle,
   BarChart3,
   Download,
 } from "lucide-react";
 import UserBlogsSection from "../../components/profile/UserBlogsSection";
 
-export default function StudentProfile() {
+export default function Profile() {
   const navigate = useNavigate();
   const { user, logout, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState(null);
-  const [attendance, setAttendance] = useState(null);
+  const [attendance, setAttendance] = useState({
+    total: 0,
+    present: 0,
+    percentage: 0,
+  });
   const [certificates, setCertificates] = useState([]);
-  const [memberCertLoading, setMemberCertLoading] = useState(false);
+  const [downloadingCertId, setDownloadingCertId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -38,13 +41,9 @@ export default function StudentProfile() {
       return;
     }
 
-    // Redirect if not a student
-    if (user.role !== "student") {
-      if (user.role === "member") {
-        navigate("/member-profile");
-      } else if (user.role === "admin" || user.role === "post_holder") {
-        navigate("/admin");
-      }
+    // Redirect admins and post holders to admin profile
+    if (user.role === "admin" || user.role === "post_holder") {
+      navigate("/admin/profile");
       return;
     }
 
@@ -60,16 +59,19 @@ export default function StudentProfile() {
           const attendanceData = attendanceResponse.data || [];
 
           // Only count events where attendance was actually marked (present or absent)
-          const markedEvents = attendanceData.filter(
-            (d) => d.status === "present" || d.status === "absent"
-          );
+          const markedEvents = Array.isArray(attendanceData)
+            ? attendanceData.filter(
+                (d) => d.status === "present" || d.status === "absent"
+              )
+            : [];
 
           const total = markedEvents.length;
           const present = markedEvents.filter(
             (d) => d.status === "present"
           ).length;
           const percentage =
-            total > 0 ? ((present / total) * 100).toFixed(1) : 0;
+            total > 0 ? Number(((present / total) * 100).toFixed(1)) : 0;
+
           setAttendance({
             total,
             present,
@@ -77,24 +79,19 @@ export default function StudentProfile() {
           });
         } catch (err) {
           console.warn("Could not fetch attendance:", err);
-          setAttendance(null);
+          // Fallback rule: default { total: 0, present: 0, percentage: 0 }
+          setAttendance({ total: 0, present: 0, percentage: 0 });
         }
 
         // Fetch certificates for user
         try {
           const certificatesResponse = await api.get("/certificate/user/all");
-          console.log("Certificates API Response:", certificatesResponse.data);
           if (
             certificatesResponse.data &&
-            certificatesResponse.data.certificates
+            Array.isArray(certificatesResponse.data.certificates)
           ) {
             setCertificates(certificatesResponse.data.certificates);
-            console.log(
-              "Certificates set:",
-              certificatesResponse.data.certificates
-            );
           } else {
-            console.warn("No certificates in response");
             setCertificates([]);
           }
         } catch (err) {
@@ -102,7 +99,7 @@ export default function StudentProfile() {
           setCertificates([]);
         }
       } catch (err) {
-        console.error("Error fetching data:", err);
+        console.error("Error fetching profile data:", err);
         setError("Failed to load profile");
       } finally {
         setLoading(false);
@@ -118,10 +115,12 @@ export default function StudentProfile() {
   };
 
   const downloadCertificate = async (cert) => {
-    setMemberCertLoading(true);
+    setDownloadingCertId(cert._id);
     try {
       const endpoint = `/certificate/download/${cert._id}`;
-      const safeTitle = (cert.title || "certificate").replace(/[^a-z0-9_-]+/gi, "-").toLowerCase();
+      const safeTitle = (cert.title || "certificate")
+        .replace(/[^a-z0-9_-]+/gi, "-")
+        .toLowerCase();
       const filename = `${safeTitle}-${cert._id}.png`;
 
       const response = await api.get(endpoint, {
@@ -139,9 +138,12 @@ export default function StudentProfile() {
       document.body.removeChild(link);
     } catch (err) {
       console.error("Download error:", err);
-      alert("Failed to download certificate: " + (err.response?.data?.error || err.message));
+      alert(
+        "Failed to download certificate: " +
+          (err.response?.data?.error || err.message)
+      );
     } finally {
-      setMemberCertLoading(false);
+      setDownloadingCertId(null);
     }
   };
 
@@ -158,15 +160,19 @@ export default function StudentProfile() {
       }
     } catch (err) {
       console.error("Preview error:", err);
-      alert("Failed to preview certificate: " + (err.response?.data?.error || err.message));
+      alert(
+        "Failed to preview certificate: " +
+          (err.response?.data?.error || err.message)
+      );
     }
   };
 
   if (!user) return null;
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0d0d0d]">
-        <div className="text-white">Loading profile...</div>
+        <div className="text-white text-sm">Loading profile...</div>
       </div>
     );
   }
@@ -174,10 +180,14 @@ export default function StudentProfile() {
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0d0d0d]">
-        <div className="text-red-400">{error}</div>
+        <div className="text-red-400 text-sm">{error}</div>
       </div>
     );
   }
+
+  // Derive role dynamically from profile response or JWT token
+  const userRole = (profile?.role || user?.role || "student").toLowerCase();
+  const isMember = userRole === "member";
 
   return (
     <div
@@ -193,7 +203,7 @@ export default function StudentProfile() {
 
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Profile Info */}
+          {/* Left Column - Profile Info, Attendance, Certificates */}
           <div className="lg:col-span-1 space-y-6">
             {/* Profile Card */}
             <div
@@ -202,13 +212,19 @@ export default function StudentProfile() {
             >
               {/* Avatar & Name */}
               <div className="flex flex-col items-center text-center mb-6">
-                <div className="w-20 h-20 rounded-full bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center mb-4">
+                <div
+                  className={`w-20 h-20 rounded-full bg-linear-to-br ${
+                    isMember
+                      ? "from-pink-500 to-purple-500"
+                      : "from-purple-500 to-blue-500"
+                  } flex items-center justify-center mb-4 shadow-lg`}
+                >
                   <User size={40} className="text-white" />
                 </div>
                 <h2 className="text-xl font-bold mb-1">
                   {profile?.name || "User"}
                 </h2>
-                <p className="text-[#555] text-sm">
+                <p className="text-[#555] text-xs">
                   ID: {user?._id?.substring(0, 12) ?? "..."}
                 </p>
               </div>
@@ -217,8 +233,11 @@ export default function StudentProfile() {
               <div className="space-y-3 text-sm">
                 {profile?.email && (
                   <div className="flex items-center gap-3">
-                    <Mail size={16} className="text-purple-400" />
-                    <span className="text-[#999]">
+                    <Mail
+                      size={16}
+                      className={isMember ? "text-pink-400" : "text-purple-400"}
+                    />
+                    <span className="text-[#999] truncate">
                       {profile.email.split("@")[0]}
                     </span>
                   </div>
@@ -229,7 +248,6 @@ export default function StudentProfile() {
                     <span className="text-[#999]">{profile.branch}</span>
                   </div>
                 )}
-
                 {profile?.year && (
                   <div className="flex items-center gap-3">
                     <GraduationCap size={16} className="text-green-400" />
@@ -250,105 +268,86 @@ export default function StudentProfile() {
                 style={{ borderColor: "#1f1f1f" }}
               >
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      isMember ? "bg-pink-500" : "bg-green-500"
+                    }`}
+                  />
                   <span className="text-xs text-[#999]">
-                    Student •{" "}
+                    <span className="capitalize">{userRole}</span> •{" "}
                     {profile?.email_verified ? "Verified" : "Unverified"}
                   </span>
                 </div>
-                <p className="text-xs text-[#555] mt-2">
-                  Joined{" "}
-                  {new Date(profile?.created_at).toLocaleDateString("en-US", {
-                    month: "short",
-                    year: "numeric",
-                  })}
-                </p>
+                {profile?.created_at && (
+                  <p className="text-xs text-[#555] mt-2">
+                    Joined{" "}
+                    {new Date(profile.created_at).toLocaleDateString("en-US", {
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </p>
+                )}
               </div>
             </div>
 
             {/* Attendance Card */}
-            {attendance !== null ? (
-              <div
-                className="rounded-xl border p-6"
-                style={{ background: "#111111", borderColor: "#1f1f1f" }}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <div
-                    className="p-2 rounded-lg"
-                    style={{ background: "#0ea5e918" }}
-                  >
-                    <Calendar size={18} style={{ color: "#0ea5e9" }} />
+            <div
+              className="rounded-xl border p-6"
+              style={{ background: "#111111", borderColor: "#1f1f1f" }}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div
+                  className="p-2 rounded-lg"
+                  style={{ background: "#0ea5e918" }}
+                >
+                  <Calendar size={18} style={{ color: "#0ea5e9" }} />
+                </div>
+                <h3 className="font-semibold text-white">Event Attendance</h3>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-[#555]">Attendance Rate</span>
+                    <span className="font-bold text-lg text-cyan-400">
+                      {attendance?.percentage ?? 0}%
+                    </span>
                   </div>
-                  <h3 className="font-semibold">Event Attendance</h3>
+                  <div className="w-full h-1.5 bg-[#1f1f1f] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-linear-to-r from-cyan-500 to-blue-500 transition-all duration-500"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.max(0, attendance?.percentage ?? 0)
+                        )}%`,
+                      }}
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm text-[#555]">
-                        Attendance Rate
-                      </span>
-                      <span className="font-bold text-lg text-cyan-400">
-                        {attendance.percentage}%
-                      </span>
-                    </div>
-                    <div className="w-full h-1.5 bg-[#1f1f1f] rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-linear-to-r from-cyan-500 to-blue-500"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            Math.max(0, attendance.percentage)
-                          )}%`,
-                        }}
-                      />
-                    </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div
+                    className="rounded-lg p-3"
+                    style={{ background: "#0ea5e910" }}
+                  >
+                    <p className="text-xs text-[#555]">Total Events</p>
+                    <p className="text-lg font-bold text-white">
+                      {attendance?.total ?? 0}
+                    </p>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div
-                      className="rounded-lg p-3"
-                      style={{ background: "#0ea5e910" }}
-                    >
-                      <p className="text-xs text-[#555]">Total Events</p>
-                      <p className="text-lg font-bold text-white">
-                        {attendance.total}
-                      </p>
-                    </div>
-                    <div
-                      className="rounded-lg p-3"
-                      style={{ background: "#10b98110" }}
-                    >
-                      <p className="text-xs text-[#555]">Attended</p>
-                      <p className="text-lg font-bold text-green-400">
-                        {attendance.present}
-                      </p>
-                    </div>
+                  <div
+                    className="rounded-lg p-3"
+                    style={{ background: "#10b98110" }}
+                  >
+                    <p className="text-xs text-[#555]">Attended</p>
+                    <p className="text-lg font-bold text-green-400">
+                      {attendance?.present ?? 0}
+                    </p>
                   </div>
                 </div>
               </div>
-            ) : (
-              <div
-                className="rounded-xl border p-6"
-                style={{ background: "#111111", borderColor: "#1f1f1f" }}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <div
-                    className="p-2 rounded-lg"
-                    style={{ background: "#0ea5e918" }}
-                  >
-                    <Calendar size={18} style={{ color: "#0ea5e9" }} />
-                  </div>
-                  <h3 className="font-semibold">Event Attendance</h3>
-                </div>
-                <div className="text-center py-8">
-                  <p className="text-[#555] text-sm">
-                    No attendance records yet. Attend events to see your
-                    attendance tracking!
-                  </p>
-                </div>
-              </div>
-            )}
+            </div>
 
             {/* Certificates Section */}
             <div
@@ -356,7 +355,7 @@ export default function StudentProfile() {
               style={{ background: "#111111", borderColor: "#1f1f1f" }}
             >
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold flex items-center gap-3">
+                <h3 className="text-lg font-bold flex items-center gap-3 text-white">
                   <div
                     className="p-2 rounded-lg"
                     style={{ background: "#f59e0b18" }}
@@ -388,11 +387,14 @@ export default function StudentProfile() {
                               ✓ Issued
                             </span>
                             <span className="px-2 py-0.5 rounded-md bg-[#1f1f1f] text-[#999]">
-                              {new Date(cert.issued_date).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                              })}
+                              {new Date(cert.issued_date).toLocaleDateString(
+                                "en-US",
+                                {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                }
+                              )}
                             </span>
                           </div>
                         </div>
@@ -407,11 +409,14 @@ export default function StudentProfile() {
                           </button>
                           <button
                             onClick={() => downloadCertificate(cert)}
-                            disabled={memberCertLoading}
-                            className="px-3 py-2 rounded-lg text-xs font-semibold bg-[#fbbf24] text-black hover:bg-[#f59e0b] transition-colors disabled:opacity-50"
+                            disabled={downloadingCertId === cert._id}
+                            className="px-3 py-2 rounded-lg text-xs font-semibold bg-[#fbbf24] text-black hover:bg-[#f59e0b] transition-colors disabled:opacity-50 flex items-center gap-1"
                             title="Download certificate PNG"
                           >
-                            ⬇️ Download PNG
+                            <Download size={13} />
+                            {downloadingCertId === cert._id
+                              ? "Downloading..."
+                              : "Download"}
                           </button>
                         </div>
                       </div>
@@ -421,25 +426,25 @@ export default function StudentProfile() {
               ) : (
                 <div className="text-center py-8">
                   <Award size={32} className="mx-auto mb-2 text-[#555]" />
-                  <p className="text-[#555] text-sm mb-2">
+                  <p className="text-[#555] text-sm mb-1">
                     No certificates issued yet.
                   </p>
                   <p className="text-[#555] text-xs">
-                    Complete events and get promoted to earn certificates!
+                    Attend events and workshops to earn certificates!
                   </p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Right Column - Account Info & Certificates */}
+          {/* Right Column - Account Info & My Blogs */}
           <div className="lg:col-span-2 space-y-6">
             {/* Account Information Section */}
             <div
               className="rounded-xl border p-6"
               style={{ background: "#111111", borderColor: "#1f1f1f" }}
             >
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-3">
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-3 text-white">
                 <div
                   className="p-2 rounded-lg"
                   style={{ background: "#a855f718" }}
@@ -452,7 +457,9 @@ export default function StudentProfile() {
               <div className="space-y-3">
                 <div>
                   <p className="text-[#555] text-sm mb-1">Full Name</p>
-                  <p className="text-white">{profile?.name || "N/A"}</p>
+                  <p className="text-white font-medium">
+                    {profile?.name || "N/A"}
+                  </p>
                 </div>
 
                 <div className="border-t" style={{ borderColor: "#1f1f1f" }}>
@@ -471,7 +478,7 @@ export default function StudentProfile() {
 
                 <div className="border-t" style={{ borderColor: "#1f1f1f" }}>
                   <p className="text-[#555] text-sm mb-1 mt-3">Role</p>
-                  <p className="text-white capitalize">Student</p>
+                  <p className="text-white capitalize">{userRole}</p>
                 </div>
 
                 <div className="border-t" style={{ borderColor: "#1f1f1f" }}>
@@ -494,106 +501,32 @@ export default function StudentProfile() {
 
                 <div className="border-t" style={{ borderColor: "#1f1f1f" }}>
                   <p className="text-[#555] text-sm mb-1 mt-3">Academic Info</p>
-                  <div className="flex gap-3 text-sm">
+                  <div className="flex gap-2 text-sm flex-wrap items-center">
                     {profile?.branch && (
                       <span
-                        className="px-2.5 py-1 rounded-md"
-                        style={{ background: "#0ea5e915" }}
+                        className="px-2.5 py-1 rounded-md text-xs font-medium"
+                        style={{ background: "#0ea5e915", color: "#38bdf8" }}
                       >
                         {profile.branch}
                       </span>
                     )}
                     {profile?.year && (
                       <span
-                        className="px-2.5 py-1 rounded-md"
-                        style={{ background: "#f59e0b15" }}
+                        className="px-2.5 py-1 rounded-md text-xs font-medium"
+                        style={{ background: "#f59e0b15", color: "#fbbf24" }}
                       >
                         Year {profile.year}
                       </span>
                     )}
                     {profile?.roll_number && (
                       <span
-                        className="px-2.5 py-1 rounded-md"
-                        style={{ background: "#10b98115" }}
+                        className="px-2.5 py-1 rounded-md text-xs font-medium"
+                        style={{ background: "#10b98115", color: "#34d399" }}
                       >
                         {profile.roll_number}
                       </span>
                     )}
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Promotion Info Section */}
-            <div
-              className="rounded-xl border p-6"
-              style={{ background: "#111111", borderColor: "#1f1f1f" }}
-            >
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-3">
-                <div
-                  className="p-2 rounded-lg"
-                  style={{ background: "#3b82f620" }}
-                >
-                  <Award size={18} style={{ color: "#3b82f6" }} />
-                </div>
-                Promotion Status
-              </h3>
-
-              <div className="space-y-3">
-                {!profile?.email_verified && (
-                  <div
-                    className="rounded-lg p-4 border"
-                    style={{
-                      background: "#fbbf2415",
-                      borderColor: "#fbbf2430",
-                    }}
-                  >
-                    <p className="text-amber-300 text-sm font-medium mb-1">
-                      ⚠️ Email Verification Required
-                    </p>
-                    <p className="text-[#555] text-sm">
-                      Verify your email address to be eligible for member
-                      promotion
-                    </p>
-                  </div>
-                )}
-
-                {profile?.email_verified && (
-                  <div
-                    className="rounded-lg p-4 border"
-                    style={{
-                      background: "#10b98115",
-                      borderColor: "#10b98130",
-                    }}
-                  >
-                    <p className="text-green-400 text-sm font-medium mb-1">
-                      ✓ Email Verified
-                    </p>
-                    <p className="text-[#555] text-sm">
-                      If you are an official member of iCELL, contact the
-                      administrators to upgrade your role to Member or Post
-                      Holder
-                    </p>
-                  </div>
-                )}
-
-                <div className="border-t" style={{ borderColor: "#1f1f1f" }} />
-
-                <div>
-                  <p className="text-[#555] text-sm mb-2">Current Status</p>
-                  <span
-                    className="px-3 py-1 rounded-full text-sm font-medium"
-                    style={{ background: "#3b82f620", color: "#3b82f6" }}
-                  >
-                    Student
-                  </span>
-                </div>
-
-                <div>
-                  <p className="text-[#555] text-sm mb-2">Promotion Path</p>
-                  <p className="text-[#999] text-sm">
-                    Student → Member → (Optional: Post Holder)
-                  </p>
                 </div>
               </div>
             </div>
@@ -614,10 +547,10 @@ export default function StudentProfile() {
               color: "#ef4444",
             }}
             onMouseEnter={(e) => {
-              e.target.style.background = "#ef444425";
+              e.currentTarget.style.background = "#ef444425";
             }}
             onMouseLeave={(e) => {
-              e.target.style.background = "#ef444415";
+              e.currentTarget.style.background = "#ef444415";
             }}
           >
             <LogOut size={16} />

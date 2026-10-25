@@ -126,34 +126,6 @@ export default function Navbar() {
                         </button>
                         <div className="border-t border-white/10"></div>
                       </>
-                    ) : userRole === "member" ? (
-                      <>
-                        <button
-                          onClick={() => {
-                            navigate("/member-profile");
-                            setOpenMenu(false);
-                          }}
-                          className="w-full cursor-pointer text-left px-4 py-3 text-xs md:text-sm text-white/80 hover:bg-white/10 transition flex items-center gap-2"
-                        >
-                          <User size={16} />
-                          Member Profile
-                        </button>
-                        <div className="border-t border-white/10"></div>
-                      </>
-                    ) : userRole === "student" ? (
-                      <>
-                        <button
-                          onClick={() => {
-                            navigate("/student-profile");
-                            setOpenMenu(false);
-                          }}
-                          className="w-full cursor-pointer text-left px-4 py-3 text-xs md:text-sm text-white/80 hover:bg-white/10 transition flex items-center gap-2"
-                        >
-                          <User size={16} />
-                          Student Profile
-                        </button>
-                        <div className="border-t border-white/10"></div>
-                      </>
                     ) : (
                       <>
                         <button
@@ -164,7 +136,7 @@ export default function Navbar() {
                           className="w-full cursor-pointer text-left px-4 py-3 text-xs md:text-sm text-white/80 hover:bg-white/10 transition flex items-center gap-2"
                         >
                           <User size={16} />
-                          My Profile
+                          Profile
                         </button>
                         <div className="border-t border-white/10"></div>
                       </>
@@ -256,32 +228,6 @@ export default function Navbar() {
                   Admin Dashboard
                 </button>
               </>
-            ) : userRole === "member" ? (
-              <>
-                <button
-                  onClick={() => {
-                    navigate("/member-profile");
-                    setOpenMenu(false);
-                  }}
-                  className="w-full text-left px-4 py-3 text-sm text-white/80 hover:bg-white/10 flex items-center gap-2 border-b border-white/5"
-                >
-                  <User size={16} />
-                  Member Profile
-                </button>
-              </>
-            ) : userRole === "student" ? (
-              <>
-                <button
-                  onClick={() => {
-                    navigate("/student-profile");
-                    setOpenMenu(false);
-                  }}
-                  className="w-full text-left px-4 py-3 text-sm text-white/80 hover:bg-white/10 flex items-center gap-2 border-b border-white/5"
-                >
-                  <User size={16} />
-                  Student Profile
-                </button>
-              </>
             ) : (
               <>
                 <button
@@ -292,7 +238,7 @@ export default function Navbar() {
                   className="w-full text-left px-4 py-3 text-sm text-white/80 hover:bg-white/10 flex items-center gap-2 border-b border-white/5"
                 >
                   <User size={16} />
-                  My Profile
+                  Profile
                 </button>
               </>
             )}

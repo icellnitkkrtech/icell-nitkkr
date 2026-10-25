@@ -29,7 +29,9 @@ export default function AdminAttendance() {
   const [mainEvents, setMainEvents] = useState([]);
   const [attendanceOnlyEvents, setAttendanceOnlyEvents] = useState([]);
   const [pastEvents, setPastEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [studentsLoading, setStudentsLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState(null);
@@ -93,56 +95,39 @@ export default function AdminAttendance() {
     }
   }, [authLoading, user, navigate]);
 
-  // Initial Data Load (Students & Past Events)
+  // Initial Data Load (Parallelized for optimal performance & fault tolerance)
   const fetchInitialData = async () => {
     try {
-      setLoading(true);
+      setEventsLoading(true);
+      setStudentsLoading(true);
+      setError(null);
       const token = getToken();
 
-      // Fetch all students
-      const studentRes = await fetch(`${API}/api/students`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!studentRes.ok) throw new Error("Failed to fetch students");
-      const studentData = await studentRes.json();
-      setStudents(Array.isArray(studentData) ? studentData : []);
-
-      // Fetch main events from events collection
-      const mainEventsRes = await fetch(
-        `${API}/api/event-attendance/main-events`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      if (mainEventsRes.ok) {
-        const mainEventsData = await mainEventsRes.json();
-        setMainEvents(Array.isArray(mainEventsData) ? mainEventsData : []);
+      if (!token) {
+        navigate("/login");
+        return;
       }
 
-      // Fetch attendance-only events
-      const attendanceOnlyRes = await fetch(
-        `${API}/api/event-attendance/attendance-only-events`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      if (attendanceOnlyRes.ok) {
-        const attendanceOnlyData = await attendanceOnlyRes.json();
-        setAttendanceOnlyEvents(
-          Array.isArray(attendanceOnlyData) ? attendanceOnlyData : []
-        );
-      }
+      // Fetch all required resources concurrently via Promise.allSettled
+      const [eventsRes, mainEventsRes, attendanceOnlyRes, studentsRes] =
+        await Promise.allSettled([
+          fetch(`${API}/api/event-attendance/events/list`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API}/api/event-attendance/main-events`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API}/api/event-attendance/attendance-only-events`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          fetch(`${API}/api/students`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
 
-      // Fetch all unique events for the list view
-      const allEventsRes = await fetch(
-        `${API}/api/event-attendance/events/list`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      if (allEventsRes.ok) {
-        const allEventsData = await allEventsRes.json();
-        // Sort by createdAt/created_at DESC (newest first)
+      // 1. Process Past Events (The primary data for the default "list" view)
+      if (eventsRes.status === "fulfilled" && eventsRes.value.ok) {
+        const allEventsData = await eventsRes.value.json();
         const sortedEvents = (
           Array.isArray(allEventsData) ? allEventsData : []
         ).sort(
@@ -151,10 +136,44 @@ export default function AdminAttendance() {
             new Date(a.createdAt || a.created_at)
         );
         setPastEvents(sortedEvents);
+      } else {
+        console.warn("Could not fetch events list:", eventsRes);
+        if (eventsRes.status === "fulfilled" && eventsRes.value.status === 401) {
+          navigate("/login");
+          return;
+        }
+      }
+
+      // 2. Process Main Events
+      if (mainEventsRes.status === "fulfilled" && mainEventsRes.value.ok) {
+        const mainEventsData = await mainEventsRes.value.json();
+        setMainEvents(Array.isArray(mainEventsData) ? mainEventsData : []);
+      }
+
+      // 3. Process Attendance-only Events
+      if (
+        attendanceOnlyRes.status === "fulfilled" &&
+        attendanceOnlyRes.value.ok
+      ) {
+        const attendanceOnlyData = await attendanceOnlyRes.value.json();
+        setAttendanceOnlyEvents(
+          Array.isArray(attendanceOnlyData) ? attendanceOnlyData : []
+        );
+      }
+
+      // 4. Process Students List
+      if (studentsRes.status === "fulfilled" && studentsRes.value.ok) {
+        const studentData = await studentsRes.value.json();
+        setStudents(Array.isArray(studentData) ? studentData : []);
+      } else {
+        console.warn("Could not fetch students list:", studentsRes);
       }
     } catch (err) {
-      setError(err.message);
+      console.error("fetchInitialData error:", err);
+      setError("Failed to load attendance events. Please try again.");
     } finally {
+      setEventsLoading(false);
+      setStudentsLoading(false);
       setLoading(false);
     }
   };
@@ -181,7 +200,8 @@ export default function AdminAttendance() {
       setSearchTerm("");
 
       const token = getToken();
-      const res = await fetch(
+
+      const fetchAttendance = fetch(
         `${API}/api/event-attendance/event?name=${encodeURIComponent(
           name
         )}&date=${date}`,
@@ -190,6 +210,19 @@ export default function AdminAttendance() {
         }
       );
 
+      // If students haven't completed loading yet, fetch them concurrently
+      const fetchStudents =
+        students.length === 0
+          ? fetch(`${API}/api/students`, {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+          : Promise.resolve(null);
+
+      const [res, studentRes] = await Promise.all([
+        fetchAttendance,
+        fetchStudents,
+      ]);
+
       if (res.ok) {
         const data = await res.json();
         const attendanceMap = {};
@@ -197,6 +230,11 @@ export default function AdminAttendance() {
           attendanceMap[record.student_id] = record.status;
         });
         setAttendance(attendanceMap);
+      }
+
+      if (studentRes && studentRes.ok) {
+        const studentData = await studentRes.json();
+        setStudents(Array.isArray(studentData) ? studentData : []);
       }
     } catch (err) {
       console.error("Failed to load existing attendance", err);
@@ -207,6 +245,7 @@ export default function AdminAttendance() {
       );
     } finally {
       setLoading(false);
+      setStudentsLoading(false);
     }
   };
 
@@ -421,20 +460,6 @@ export default function AdminAttendance() {
     ).length,
   };
 
-  if (loading && students.length === 0) {
-    return (
-      <div className="flex h-screen bg-[#0d0d0d] text-white">
-        <AdminSidebar
-          sidebarOpen={sidebarOpen}
-          setSidebarOpen={setSidebarOpen}
-        />
-        <div className="flex-1 overflow-auto flex items-center justify-center">
-          <p className="text-[#666]">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-screen bg-[#0d0d0d] text-white">
       <AdminSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
@@ -465,20 +490,70 @@ export default function AdminAttendance() {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 rounded-lg border border-red-500 bg-red-500/10 text-red-400">
-            {error}
+          <div className="mb-6 p-4 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 text-sm">
+              <AlertCircle size={18} className="text-red-400 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button
+              onClick={fetchInitialData}
+              className="px-3 py-1 bg-red-600/30 hover:bg-red-600/50 border border-red-500/40 text-white rounded text-xs font-semibold transition"
+            >
+              Retry
+            </button>
           </div>
         )}
 
         {/* VIEW 1: PAST EVENTS LIST */}
         {viewState === "list" && (
           <div className="space-y-4">
-            <h2 className="text-xl font-semibold mb-4 text-[#ddd]">
-              All Events (by Recent First)
-            </h2>
-            {pastEvents.length === 0 ? (
-              <div className="p-6 rounded-lg border border-[#1f1f1f] bg-[#111111] text-center text-[#666]">
-                No events found. Click "New Event" to start tracking attendance.
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-[#ddd]">
+                All Events (by Recent First)
+              </h2>
+              {eventsLoading && (
+                <span className="flex items-center gap-1.5 text-xs text-purple-400">
+                  <Loader2 size={13} className="animate-spin" />
+                  Loading events...
+                </span>
+              )}
+            </div>
+
+            {eventsLoading ? (
+              /* SKELETON CARDS GRID while loading */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[1, 2, 3, 4, 5, 6].map((sk) => (
+                  <div
+                    key={sk}
+                    className="p-5 rounded-xl border border-[#1f1f1f] bg-[#111111] animate-pulse space-y-3"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="w-3/4 h-5 bg-[#202020] rounded-md"></div>
+                      <div className="w-5 h-5 bg-[#202020] rounded-md"></div>
+                    </div>
+                    <div className="w-1/3 h-3.5 bg-[#181818] rounded"></div>
+                    <div className="pt-2 flex gap-3">
+                      <div className="w-24 h-4 bg-[#1c1c1c] rounded"></div>
+                      <div className="w-14 h-4 bg-[#1c1c1c] rounded"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : pastEvents.length === 0 ? (
+              <div className="p-8 rounded-xl border border-[#1f1f1f] bg-[#111111] text-center">
+                <Calendar size={32} className="mx-auto mb-3 text-[#444]" />
+                <p className="text-white font-medium text-sm mb-1">
+                  No attendance events found
+                </p>
+                <p className="text-xs text-[#666] mb-4">
+                  Start tracking student participation by creating your first attendance event.
+                </p>
+                <button
+                  onClick={handleCreateNew}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition"
+                >
+                  <Plus size={14} /> Create First Event
+                </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -488,7 +563,7 @@ export default function AdminAttendance() {
                     onClick={() =>
                       loadEventAttendance(ev.name, ev.date, ev.type, ev.source)
                     }
-                    className="p-5 rounded-xl border border-[#1f1f1f] bg-[#111111] hover:border-purple-500/50 cursor-pointer transition group relative"
+                    className="p-5 rounded-xl border border-[#1f1f1f] bg-[#111111] hover:border-purple-500/50 cursor-pointer transition group relative hover:bg-[#141414]"
                   >
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex-1">
@@ -504,10 +579,10 @@ export default function AdminAttendance() {
                       <button
                         onClick={(e) => handleDeleteEvent(ev.name, ev.date, e)}
                         disabled={deleting}
-                        className="absolute top-4 right-4 text-[#555] hover:text-red-500 transition opacity-0 group-hover:opacity-100"
+                        className="absolute top-4 right-4 text-[#555] hover:text-red-500 transition opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-950/20"
                         title="Delete Event"
                       >
-                        <Trash2 size={18} />
+                        <Trash2 size={16} />
                       </button>
                     </div>
                     <div className="flex gap-3 text-xs text-[#888]">
@@ -544,7 +619,12 @@ export default function AdminAttendance() {
                   created first.
                 </p>
 
-                {mainEvents.length === 0 ? (
+                {eventsLoading ? (
+                  <div className="space-y-2.5 mb-6">
+                    <div className="h-14 rounded-lg bg-[#181818] border border-[#222] animate-pulse" />
+                    <div className="h-14 rounded-lg bg-[#181818] border border-[#222] animate-pulse" />
+                  </div>
+                ) : mainEvents.length === 0 ? (
                   <div className="p-4 rounded-lg bg-[#0d0d0d] border border-[#2f2f2f] text-[#666] text-sm text-center mb-4">
                     No main events created yet. Create events in the Events
                     section first.
@@ -864,52 +944,80 @@ export default function AdminAttendance() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredStudents.map((student) => {
-                    const studentId = student._id || student.id;
-                    return (
-                      <tr
-                        key={studentId}
-                        className="border-b border-[#1f1f1f] hover:bg-[#1a1a1a] transition"
+                  {studentsLoading || loading ? (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="px-6 py-12 text-center text-[#666]"
                       >
-                        <td className="px-6 py-4 text-sm text-white">
-                          {student.name}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-[#666]">
-                          {student.branch}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() =>
-                                handleAttendanceChange(studentId, "present")
-                              }
-                              className={`p-2 rounded ${
-                                attendance[studentId] === "present"
-                                  ? "bg-green-500 text-white"
-                                  : "bg-[#1f1f1f] text-[#666] hover:bg-[#2f2f2f]"
-                              }`}
-                              title="Mark Present"
-                            >
-                              <Check size={18} />
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleAttendanceChange(studentId, "absent")
-                              }
-                              className={`p-2 rounded ${
-                                attendance[studentId] === "absent"
-                                  ? "bg-red-500 text-white"
-                                  : "bg-[#1f1f1f] text-[#666] hover:bg-[#2f2f2f]"
-                              }`}
-                              title="Mark Absent"
-                            >
-                              <X size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Loader2
+                            size={24}
+                            className="animate-spin text-purple-400"
+                          />
+                          <span className="text-sm">
+                            Loading students & attendance...
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : filteredStudents.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="px-6 py-8 text-center text-[#666]"
+                      >
+                        No students found matching your filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredStudents.map((student) => {
+                      const studentId = student._id || student.id;
+                      return (
+                        <tr
+                          key={studentId}
+                          className="border-b border-[#1f1f1f] hover:bg-[#1a1a1a] transition"
+                        >
+                          <td className="px-6 py-4 text-sm text-white">
+                            {student.name}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-[#666]">
+                            {student.branch}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() =>
+                                  handleAttendanceChange(studentId, "present")
+                                }
+                                className={`p-2 rounded ${
+                                  attendance[studentId] === "present"
+                                    ? "bg-green-500 text-white"
+                                    : "bg-[#1f1f1f] text-[#666] hover:bg-[#2f2f2f]"
+                                }`}
+                                title="Mark Present"
+                              >
+                                <Check size={18} />
+                              </button>
+                              <button
+                                onClick={() =>
+                                  handleAttendanceChange(studentId, "absent")
+                                }
+                                className={`p-2 rounded ${
+                                  attendance[studentId] === "absent"
+                                    ? "bg-red-500 text-white"
+                                    : "bg-[#1f1f1f] text-[#666] hover:bg-[#2f2f2f]"
+                                }`}
+                                title="Mark Absent"
+                              >
+                                <X size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>

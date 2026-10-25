@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import Home from "./pages/home";
 import EventsPage from "./pages/EventsPage";
@@ -22,9 +22,7 @@ import DynamicCertificateGenerator from "./pages/admin/DynamicCertificateGenerat
 import Login from "./pages/auth/login";
 import RegisterNew from "./pages/auth/register_new";
 import ForgotPassword from "./pages/auth/forgot_password";
-import ProfilePage from "./pages/ProfilePage";
-import MemberProfile from "./pages/Profile/MemberProfile";
-import StudentProfile from "./pages/Profile/StudentProfile";
+import Profile from "./pages/Profile/Profile";
 import TeamPage from "./pages/TeamPage";
 import { AuthProvider } from "./context/AuthContext";
 import AdminProfile from "./pages/admin/AdminProfile";
@@ -183,7 +181,7 @@ export default function App() {
             }
           />
 
-          {/* Profile Page */}
+          {/* Profile */}
           <Route
             path="/profile"
             element={
@@ -192,37 +190,19 @@ export default function App() {
                   <Navbar />
                 </div>
 
-                <ProfilePage />
+                <Profile />
               </div>
             }
           />
 
-          {/* Student Profile */}
+          {/* Legacy Profile Routes */}
           <Route
             path="/student-profile"
-            element={
-              <div className="min-h-screen flex flex-col bg-[#0d0d0d] text-white">
-                <div className="fixed top-6 w-full z-50 flex justify-center">
-                  <Navbar />
-                </div>
-
-                <StudentProfile />
-              </div>
-            }
+            element={<Navigate to="/profile" replace />}
           />
-
-          {/* Member Profile */}
           <Route
             path="/member-profile"
-            element={
-              <div className="min-h-screen flex flex-col bg-[#0d0d0d] text-white">
-                <div className="fixed top-6 w-full z-50 flex justify-center">
-                  <Navbar />
-                </div>
-
-                <MemberProfile />
-              </div>
-            }
+            element={<Navigate to="/profile" replace />}
           />
 
           <Route path="/login" element={<Login />} />

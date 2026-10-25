@@ -328,6 +328,8 @@ export async function getProfile(req, res) {
       role: user.role,
       is_member: user.is_member,
       email_verified: user.email_verified === true,
+      roll_number: user.roll_number,
+      created_at: user.created_at,
     });
   } catch (error) {
     console.error("Get profile error:", error);

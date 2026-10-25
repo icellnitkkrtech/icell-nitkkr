@@ -418,10 +418,9 @@ export default function WriteBlogPage() {
             </button>
             <button
               onClick={() => {
-                if (user?.role === "member") navigate("/member-profile");
-                else if (user?.role === "admin" || user?.role === "post_holder")
+                if (user?.role === "admin" || user?.role === "post_holder")
                   navigate("/admin/profile");
-                else navigate("/student-profile");
+                else navigate("/profile");
               }}
               style={{
                 padding: "12px 24px",
