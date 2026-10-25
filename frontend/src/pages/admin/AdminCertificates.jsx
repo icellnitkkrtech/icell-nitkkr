@@ -221,7 +221,7 @@ export default function AdminCertificates() {
       <AdminSidebar />
 
       <div className="flex-1 overflow-auto">
-        <div className="p-6 md:p-8 max-md:pt-20">
+        <div className="p-4 sm:p-6 md:p-8 max-lg:pt-20">
           <div className="mb-8">
             <h1 className="mb-1 text-3xl font-bold">Certificates</h1>
             <p className="text-[#777]">Manage, search, and issue template certificates to students</p>

@@ -19,7 +19,7 @@ const API = `${BASE_URL}/api/newsletters`;
 
 export default function AdminNewsletters() {
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [newsletters, setNewsletters] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
@@ -184,7 +184,7 @@ export default function AdminNewsletters() {
       <AdminSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
       <div className="flex-1 overflow-auto">
         <div
-          className="p-8 min-h-screen max-md:pt-20"
+          className="p-4 sm:p-6 md:p-8 min-h-screen max-lg:pt-20"
           style={{ background: "#0d0d0d" }}
         >
           <div className="mb-8">

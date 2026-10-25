@@ -350,7 +350,7 @@ export default function AdminCertificateTemplates() {
   return (
     <div className="flex h-screen overflow-hidden bg-[#0d0d0d] text-white">
       <AdminSidebar />
-      <main className="min-w-0 flex-1 overflow-y-auto p-6 md:p-8 max-md:pt-20">
+      <main className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 max-lg:pt-20">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Certificate Templates</h1>
           <p className="mt-1 text-[#777]">Admin-managed designs and dynamic fields</p>

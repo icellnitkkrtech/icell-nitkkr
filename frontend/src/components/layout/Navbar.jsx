@@ -35,6 +35,12 @@ export default function Navbar() {
     setLoading(false);
   }, [user]);
 
+  // Close mobile menus on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setOpenMenu(false);
+  }, [location.pathname]);
+
   const handleLogout = () => {
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
