@@ -115,6 +115,9 @@ export default function MarkdownRenderer({ content, className = "" }) {
             overflow: "hidden",
             background: "#080808",
             border: "1px solid rgba(255,255,255,0.12)",
+            width: "100%",
+            maxWidth: "100%",
+            minWidth: 0,
           }}
         >
           {lang && (
@@ -138,6 +141,8 @@ export default function MarkdownRenderer({ content, className = "" }) {
               padding: "16px",
               margin: 0,
               overflowX: "auto",
+              maxWidth: "100%",
+              width: "100%",
               fontFamily: "Consolas, Monaco, 'Courier New', monospace",
               fontSize: "13px",
               lineHeight: 1.6,
@@ -346,5 +351,15 @@ export default function MarkdownRenderer({ content, className = "" }) {
     i++;
   }
 
-  return <div className={`markdown-body ${className}`}>{elements}</div>;
+  return (
+    <div
+      className={`markdown-body w-full max-w-full min-w-0 ${className}`}
+      style={{
+        wordBreak: "break-word",
+        overflowWrap: "break-word",
+      }}
+    >
+      {elements}
+    </div>
+  );
 }
