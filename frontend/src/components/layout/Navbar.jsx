@@ -203,28 +203,39 @@ export default function Navbar() {
           {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
 
-        {/* MOBILE USER MENU */}
+        {/* MOBILE USER MENU / AUTH BUTTONS */}
         <div>
           {user && !loading ? (
             <button
               onClick={() => setOpenMenu(!openMenu)}
-              className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition"
+              className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition cursor-pointer"
+              title="User menu"
             >
               <User size={20} />
             </button>
           ) : !loading ? (
-            <button
-              onClick={() => navigate("/login")}
-              className="p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition"
-            >
-              <LogIn size={20} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate("/login")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition cursor-pointer"
+              >
+                <LogIn size={13} />
+                <span>Login</span>
+              </button>
+              <button
+                onClick={() => navigate("/register_new")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-white bg-white/15 hover:bg-white/25 border border-white/20 transition cursor-pointer"
+              >
+                <UserPlus size={13} />
+                <span>Sign Up</span>
+              </button>
+            </div>
           ) : null}
         </div>
 
         {/* USER DROPDOWN FOR MOBILE */}
-        {openMenu && (
-          <div className="absolute right-0 top-16 w-48 bg-black/90 backdrop-blur-xl border border-white/10 rounded-lg shadow-lg overflow-hidden z-50 mt-1">
+        {openMenu && user && (
+          <div className="absolute right-3 top-16 w-48 bg-black/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-lg overflow-hidden z-50">
             <div className="px-4 py-2 bg-white/5 text-xs text-white/60 border-b border-white/10">
               Role:{" "}
               <span className="text-white font-medium capitalize">
@@ -239,7 +250,7 @@ export default function Navbar() {
                     navigate("/admin/dashboard");
                     setOpenMenu(false);
                   }}
-                  className="w-full text-left px-4 py-3 text-sm text-white/80 hover:bg-white/10 flex items-center gap-2 border-b border-white/5"
+                  className="w-full text-left px-4 py-3 text-sm text-white/80 hover:bg-white/10 flex items-center gap-2 border-b border-white/5 cursor-pointer"
                 >
                   <LayoutDashboard size={16} />
                   Admin Dashboard
@@ -249,60 +260,31 @@ export default function Navbar() {
                     navigate("/profile");
                     setOpenMenu(false);
                   }}
-                  className="w-full text-left px-4 py-3 text-sm text-white/80 hover:bg-white/10 flex items-center gap-2 border-b border-white/5"
+                  className="w-full text-left px-4 py-3 text-sm text-white/80 hover:bg-white/10 flex items-center gap-2 border-b border-white/5 cursor-pointer"
                 >
                   <User size={16} />
                   Profile
                 </button>
               </>
             ) : (
-              <>
-                <button
-                  onClick={() => {
-                    navigate("/profile");
-                    setOpenMenu(false);
-                  }}
-                  className="w-full text-left px-4 py-3 text-sm text-white/80 hover:bg-white/10 flex items-center gap-2 border-b border-white/5"
-                >
-                  <User size={16} />
-                  Profile
-                </button>
-              </>
-            )}
-
-            {user && (
               <button
-                onClick={handleLogout}
-                className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-white/10"
+                onClick={() => {
+                  navigate("/profile");
+                  setOpenMenu(false);
+                }}
+                className="w-full text-left px-4 py-3 text-sm text-white/80 hover:bg-white/10 flex items-center gap-2 border-b border-white/5 cursor-pointer"
               >
-                Logout
+                <User size={16} />
+                Profile
               </button>
             )}
 
-            {!user && !loading && (
-              <>
-                <button
-                  onClick={() => {
-                    navigate("/login");
-                    setOpenMenu(false);
-                  }}
-                  className="w-full text-left px-4 py-3 text-sm text-white/80 hover:bg-white/10 flex items-center gap-2 border-b border-white/5"
-                >
-                  <LogIn size={16} />
-                  Login
-                </button>
-                <button
-                  onClick={() => {
-                    navigate("/register_new");
-                    setOpenMenu(false);
-                  }}
-                  className="w-full text-left px-4 py-3 text-sm text-white/80 hover:bg-white/10 flex items-center gap-2"
-                >
-                  <UserPlus size={16} />
-                  Sign Up
-                </button>
-              </>
-            )}
+            <button
+              onClick={handleLogout}
+              className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-white/10 cursor-pointer"
+            >
+              Logout
+            </button>
           </div>
         )}
       </div>
@@ -321,7 +303,7 @@ export default function Navbar() {
                     navigate(tab.path);
                     setMobileMenuOpen(false);
                   }}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all cursor-pointer ${
                     active
                       ? "bg-white/10 text-white"
                       : "text-white/60 hover:text-white hover:bg-white/5"
@@ -332,6 +314,66 @@ export default function Navbar() {
                 </button>
               );
             })}
+
+            {/* Mobile drawer auth options */}
+            {!user && !loading ? (
+              <div className="pt-3 mt-1 border-t border-white/10 flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    navigate("/login");
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-white/80 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition cursor-pointer"
+                >
+                  <LogIn size={16} />
+                  Login
+                </button>
+                <button
+                  onClick={() => {
+                    navigate("/register_new");
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-white bg-white/15 hover:bg-white/20 border border-white/20 transition cursor-pointer"
+                >
+                  <UserPlus size={16} />
+                  Sign Up
+                </button>
+              </div>
+            ) : user && !loading ? (
+              <div className="pt-3 mt-1 border-t border-white/10 flex flex-col gap-1">
+                {(userRole === "admin" || userRole === "post_holder") && (
+                  <button
+                    onClick={() => {
+                      navigate("/admin/dashboard");
+                      setMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-sm text-white/80 hover:bg-white/10 transition cursor-pointer"
+                  >
+                    <LayoutDashboard size={16} />
+                    Admin Dashboard
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    navigate("/profile");
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-sm text-white/80 hover:bg-white/10 transition cursor-pointer"
+                >
+                  <User size={16} />
+                  Profile
+                </button>
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-sm text-red-400 hover:bg-white/10 transition cursor-pointer"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : null}
           </nav>
         </div>
       )}
