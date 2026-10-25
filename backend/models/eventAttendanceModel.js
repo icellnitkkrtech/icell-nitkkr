@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { ObjectId } from "mongodb";
 
 // Mark attendance
-// event_source: "main" = from events collection, "attendance_only" = created just for attendance
+// event_source: "main" = from events collection, "other" = other events (society meets, sessions, workshops, etc.)
 export async function markAttendance(
   eventName,
   eventType,
@@ -11,7 +11,7 @@ export async function markAttendance(
   studentId,
   status,
   markedBy,
-  eventSource = "attendance_only",
+  eventSource = "other",
   years = [] // Array of academic years this event is for
 ) {
   try {
@@ -266,7 +266,7 @@ export async function fetchMultipleStudentsAttendanceStats(studentIds) {
 }
 
 // Helper: Get unique events to populate a dropdown on the frontend
-// Returns both main events (from events collection) and attendance-only events
+// Returns both main events (from events collection) and other events
 // Sorted by created_at DESC (newest first)
 export async function fetchUniqueEvents() {
   try {
@@ -321,15 +321,15 @@ export async function fetchMainEvents() {
   }
 }
 
-// Get attendance-only events (created just for tracking, not visible in events section)
-export async function fetchAttendanceOnlyEvents() {
+// Get other events (society meets, internal sessions, workshops, etc.)
+export async function fetchOtherEvents() {
   try {
     const db = getDB();
     const attendance = db.collection("event_attendance");
 
-    const attendanceOnlyEvents = await attendance
+    const otherEvents = await attendance
       .aggregate([
-        { $match: { event_source: "attendance_only" } }, // Only attendance-only events
+        { $match: { event_source: { $ne: "main" } } }, // Match all other events (including historical attendance_only and other)
         {
           $group: {
             _id: { name: "$event_name", date: "$event_date" },
@@ -350,11 +350,14 @@ export async function fetchAttendanceOnlyEvents() {
       ])
       .toArray();
 
-    return { data: attendanceOnlyEvents, error: null };
+    return { data: otherEvents, error: null };
   } catch (error) {
     return { data: null, error };
   }
 }
+
+// Backward-compatibility alias
+export const fetchAttendanceOnlyEvents = fetchOtherEvents;
 
 // Delete event - removes all attendance records for a specific event
 export async function deleteEvent(eventName, eventDate) {

@@ -12,6 +12,7 @@ import {
   Newspaper,
   Code,
   Images,
+  Pencil,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -108,7 +109,7 @@ export default function Navbar() {
                     <div className="px-4 py-2 bg-white/5 text-xs text-white/60 border-b border-white/10">
                       Role:{" "}
                       <span className="text-white font-medium capitalize">
-                        {userRole || "user"}
+                        {userRole === "post_holder" ? "Post Holder" : userRole ? userRole.replace("_", " ") : "user"}
                       </span>
                     </div>
 
@@ -124,33 +125,15 @@ export default function Navbar() {
                           <LayoutDashboard size={16} />
                           Admin Dashboard
                         </button>
-                        <div className="border-t border-white/10"></div>
-                      </>
-                    ) : userRole === "member" ? (
-                      <>
                         <button
                           onClick={() => {
-                            navigate("/member-profile");
+                            navigate("/profile");
                             setOpenMenu(false);
                           }}
                           className="w-full cursor-pointer text-left px-4 py-3 text-xs md:text-sm text-white/80 hover:bg-white/10 transition flex items-center gap-2"
                         >
                           <User size={16} />
-                          Member Profile
-                        </button>
-                        <div className="border-t border-white/10"></div>
-                      </>
-                    ) : userRole === "student" ? (
-                      <>
-                        <button
-                          onClick={() => {
-                            navigate("/student-profile");
-                            setOpenMenu(false);
-                          }}
-                          className="w-full cursor-pointer text-left px-4 py-3 text-xs md:text-sm text-white/80 hover:bg-white/10 transition flex items-center gap-2"
-                        >
-                          <User size={16} />
-                          Student Profile
+                          Profile
                         </button>
                         <div className="border-t border-white/10"></div>
                       </>
@@ -164,7 +147,7 @@ export default function Navbar() {
                           className="w-full cursor-pointer text-left px-4 py-3 text-xs md:text-sm text-white/80 hover:bg-white/10 transition flex items-center gap-2"
                         >
                           <User size={16} />
-                          My Profile
+                          Profile
                         </button>
                         <div className="border-t border-white/10"></div>
                       </>
@@ -239,7 +222,7 @@ export default function Navbar() {
             <div className="px-4 py-2 bg-white/5 text-xs text-white/60 border-b border-white/10">
               Role:{" "}
               <span className="text-white font-medium capitalize">
-                {userRole || "user"}
+                {userRole === "post_holder" ? "Post Holder" : userRole ? userRole.replace("_", " ") : "user"}
               </span>
             </div>
 
@@ -255,31 +238,15 @@ export default function Navbar() {
                   <LayoutDashboard size={16} />
                   Admin Dashboard
                 </button>
-              </>
-            ) : userRole === "member" ? (
-              <>
                 <button
                   onClick={() => {
-                    navigate("/member-profile");
+                    navigate("/profile");
                     setOpenMenu(false);
                   }}
                   className="w-full text-left px-4 py-3 text-sm text-white/80 hover:bg-white/10 flex items-center gap-2 border-b border-white/5"
                 >
                   <User size={16} />
-                  Member Profile
-                </button>
-              </>
-            ) : userRole === "student" ? (
-              <>
-                <button
-                  onClick={() => {
-                    navigate("/student-profile");
-                    setOpenMenu(false);
-                  }}
-                  className="w-full text-left px-4 py-3 text-sm text-white/80 hover:bg-white/10 flex items-center gap-2 border-b border-white/5"
-                >
-                  <User size={16} />
-                  Student Profile
+                  Profile
                 </button>
               </>
             ) : (
@@ -292,7 +259,7 @@ export default function Navbar() {
                   className="w-full text-left px-4 py-3 text-sm text-white/80 hover:bg-white/10 flex items-center gap-2 border-b border-white/5"
                 >
                   <User size={16} />
-                  My Profile
+                  Profile
                 </button>
               </>
             )}

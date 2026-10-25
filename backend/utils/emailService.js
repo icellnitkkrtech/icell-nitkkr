@@ -32,7 +32,7 @@ export async function sendVerificationEmail(
       process.env.MAILJET_FROM_EMAIL ||
       process.env.SMTP_FROM ||
       "noreply@nitkkr.ac.in";
-    const senderName = process.env.MAILJET_FROM_NAME || "NITKKR";
+    const senderName = process.env.MAILJET_FROM_NAME || "ICELL";
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -122,7 +122,7 @@ export async function sendVerificationEmail(
             <p>Best regards,<br>ICell Team</p>
           </div>
           <div class="footer">
-            <p>&copy; 2024 NIT Kurukshetra. All rights reserved.</p>
+            <p>&copy; ${new Date().getFullYear()} NIT Kurukshetra. All rights reserved.</p>
             <p>This is an automated email. Please do not reply to this message.</p>
           </div>
         </div>
@@ -199,7 +199,7 @@ export async function sendEmail({
       process.env.MAILJET_FROM_EMAIL ||
       process.env.SMTP_FROM ||
       "noreply@nitkkr.ac.in";
-    const senderName = fromName || process.env.MAILJET_FROM_NAME || "NITKKR";
+    const senderName = fromName || process.env.MAILJET_FROM_NAME || "ICELL";
 
     const response = await mailjet.post("send", { version: "v3.1" }).request({
       Messages: [
@@ -247,7 +247,7 @@ export async function sendPasswordResetEmail(
       process.env.MAILJET_FROM_EMAIL ||
       process.env.SMTP_FROM ||
       "noreply@nitkkr.ac.in";
-    const senderName = process.env.MAILJET_FROM_NAME || "NITKKR";
+    const senderName = process.env.MAILJET_FROM_NAME || "ICELL";
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -337,7 +337,7 @@ export async function sendPasswordResetEmail(
             <p>Best regards,<br>ICell Team</p>
           </div>
           <div class="footer">
-            <p>&copy; 2024 NIT Kurukshetra. All rights reserved.</p>
+            <p>&copy; ${new Date().getFullYear()} NIT Kurukshetra. All rights reserved.</p>
             <p>This is an automated email. Please do not reply to this message.</p>
           </div>
         </div>
