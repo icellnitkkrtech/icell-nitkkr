@@ -45,7 +45,8 @@ async function startServer() {
     "http://localhost:5175",
     "http://localhost:4173",
     ...(process.env.FRONTEND_URLS || "").split(",").map((url) => url.trim()),
-].filter(Boolean);
+    process.env.FRONTEND_URL?.trim(),
+  ].filter(Boolean);
 
   app.use(
     cors({

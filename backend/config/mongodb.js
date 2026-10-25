@@ -28,6 +28,7 @@ export async function connectDB() {
     const events = db.collection("events");
     const students = db.collection("students");
     const attendance = db.collection("event_attendance");
+    const newsletters = db.collection("newsletters");
 
     await profiles.createIndex({ email: 1 }, { unique: true});
     await blogs.createIndex({ status: 1, created_at: -1 });
@@ -37,6 +38,7 @@ export async function connectDB() {
     await students.createIndex({ roll_number: 1 });
     await attendance.createIndex({ student_id: 1, status: 1 });
     await attendance.createIndex({ event_name: 1, event_date: 1 });
+    await newsletters.createIndex({ created_at: -1 });
 
     console.log("Connected to MongoDB: ", MONGODB_URI);
     return db;

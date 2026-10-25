@@ -118,7 +118,8 @@ export const AuthProvider = ({ children }) => {
     name,
     phone = "",
     branch = "",
-    year = ""
+    year = "",
+    roll_number = ""
   ) => {
     try {
       const response = await api.post("/auth/register", {
@@ -128,6 +129,7 @@ export const AuthProvider = ({ children }) => {
         phone,
         branch,
         year,
+        roll_number,
       });
 
       return {

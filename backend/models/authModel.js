@@ -3,7 +3,15 @@ import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 
 // Create new user
-export async function createUser(email, password, name, phone, branch, year) {
+export async function createUser(
+  email,
+  password,
+  name,
+  phone,
+  branch,
+  year,
+  roll_number = ""
+) {
   const db = getDB();
   const profiles = db.collection("profiles");
 
@@ -17,6 +25,9 @@ export async function createUser(email, password, name, phone, branch, year) {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(password, salt);
 
+  const finalRollNumber =
+    roll_number || (email.includes("@") ? email.split("@")[0] : "");
+
   const userId = uuidv4();
   const user = {
     _id: userId,
@@ -26,7 +37,7 @@ export async function createUser(email, password, name, phone, branch, year) {
     phone: phone || "",
     branch: branch || "",
     year: year || "",
-    roll_number: "",
+    roll_number: finalRollNumber,
     role: "student",
     is_member: false,
     post_position: null,
@@ -38,7 +49,7 @@ export async function createUser(email, password, name, phone, branch, year) {
   };
 
   await profiles.insertOne(user);
-  return { _id: userId, id: userId, email, name };
+  return { _id: userId, id: userId, email, name, roll_number: finalRollNumber };
 }
 
 // Get user by email

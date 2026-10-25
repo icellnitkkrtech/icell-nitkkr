@@ -32,20 +32,34 @@ function withTimeout(promise, timeoutMs) {
 }
 
 function getBackendPublicUrl() {
-  return (
+  let url = (
     process.env.BACKEND_PUBLIC_URL ||
     `http://localhost:${process.env.PORT || 5000}`
-  );
+  ).trim();
+
+  // If pointing to localhost or 127.0.0.1, always force http:// to avoid SSL errors
+  if (url.includes("localhost") || url.includes("127.0.0.1")) {
+    url = url.replace(/^https:\/\//i, "http://");
+  }
+
+  return url.replace(/\/+$/, "");
 }
 
 function getFrontendUrl() {
-  return process.env.FRONTEND_URL || "http://localhost:5173";
+  let url = (process.env.FRONTEND_URL || "http://localhost:5173").trim();
+
+  // If pointing to localhost or 127.0.0.1, always force http:// to avoid SSL errors
+  if (url.includes("localhost") || url.includes("127.0.0.1")) {
+    url = url.replace(/^https:\/\//i, "http://");
+  }
+
+  return url.replace(/\/+$/, "");
 }
 
 // Register
 export async function register(req, res) {
   try {
-    const { email, password, name, phone, branch, year } = req.body;
+    const { email, password, name, phone, branch, year, roll_number } = req.body;
 
     if (!email || !password || !name) {
       return res
@@ -59,13 +73,21 @@ export async function register(req, res) {
       });
     }
 
+    // Use provided roll_number, or fallback to email prefix before @nitkkr.ac.in
+    const finalRollNumber = (
+      roll_number ||
+      email.split("@")[0] ||
+      ""
+    ).trim();
+
     const user = await authModel.createUser(
       email,
       password,
       name,
       phone,
       branch,
-      year
+      year,
+      finalRollNumber
     );
 
     const verificationToken = crypto.randomBytes(32).toString("hex");
@@ -326,8 +348,11 @@ export async function getProfile(req, res) {
       branch: user.branch,
       year: user.year,
       role: user.role,
+      post_position: user.post_position || null,
       is_member: user.is_member,
       email_verified: user.email_verified === true,
+      roll_number: user.roll_number,
+      created_at: user.created_at,
     });
   } catch (error) {
     console.error("Get profile error:", error);
@@ -335,22 +360,93 @@ export async function getProfile(req, res) {
   }
 }
 
-// Update user profile
+// Update user profile (Only name, branch, phone allowed per requirements)
 export async function updateProfile(req, res) {
   try {
     const userId = req.user.userId;
-    const { name, phone, branch, year, roll_number } = req.body;
 
+    const user = await authModel.getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const { name, phone, branch } = req.body;
     const updates = {};
-    if (name) updates.name = name;
-    if (phone) updates.phone = phone;
-    if (branch) updates.branch = branch;
-    if (year) updates.year = year;
-    if (roll_number) updates.roll_number = roll_number;
+
+    // 1. Validate name
+    if (name !== undefined) {
+      if (typeof name !== "string") {
+        return res.status(400).json({ error: "Name must be a valid text string" });
+      }
+      const trimmedName = name.trim();
+      if (!trimmedName || trimmedName.length < 2) {
+        return res.status(400).json({ error: "Name must be at least 2 characters long" });
+      }
+      if (trimmedName.length > 100) {
+        return res.status(400).json({ error: "Name must not exceed 100 characters" });
+      }
+      updates.name = trimmedName;
+    }
+
+    // 2. Validate branch
+    if (branch !== undefined) {
+      if (typeof branch !== "string") {
+        return res.status(400).json({ error: "Branch must be a valid text string" });
+      }
+      const trimmedBranch = branch.trim();
+      if (!trimmedBranch && user.role !== "admin") {
+        return res.status(400).json({ error: "Branch cannot be empty" });
+      }
+      if (trimmedBranch.length > 50) {
+        return res.status(400).json({ error: "Branch must not exceed 50 characters" });
+      }
+      updates.branch = trimmedBranch;
+    }
+
+    // 3. Validate phone
+    if (phone !== undefined) {
+      if (typeof phone !== "string") {
+        return res.status(400).json({ error: "Phone number must be a valid text string" });
+      }
+      const trimmedPhone = phone.trim();
+      if (trimmedPhone === "") {
+        updates.phone = "";
+      } else {
+        const digitsOnly = trimmedPhone.replace(/[^0-9]/g, "");
+        if (digitsOnly.length < 10 || digitsOnly.length > 15) {
+          return res.status(400).json({
+            error: "Please enter a valid phone number (10 to 15 digits)",
+          });
+        }
+        updates.phone = trimmedPhone;
+      }
+    }
+
+    // Ensure at least one valid field was provided
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "No changes provided to update" });
+    }
 
     await authModel.updateUserProfile(userId, updates);
 
-    res.json({ message: "Profile updated successfully" });
+    const updatedUser = await authModel.getUserById(userId);
+
+    res.json({
+      message: "Profile updated successfully",
+      user: {
+        id: updatedUser._id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        phone: updatedUser.phone,
+        branch: updatedUser.branch,
+        year: updatedUser.year,
+        roll_number: updatedUser.roll_number,
+        role: updatedUser.role,
+        post_position: updatedUser.post_position || null,
+        is_member: updatedUser.is_member,
+        email_verified: updatedUser.email_verified === true,
+      },
+    });
   } catch (error) {
     console.error("Update profile error:", error);
     res.status(500).json({ error: "Failed to update profile" });
